@@ -1,4 +1,5 @@
 import os
+import urllib.request
 import streamlit as st
 from fpdf import FPDF
 from PIL import Image
@@ -6,59 +7,74 @@ from PIL import Image
 # הגדרת תצורת עמוד ב-Streamlit
 st.set_page_config(page_title="דו\"ח מפקח הסדר תנועה - ד.ד מהנדסים בע''מ", page_icon="🚦", layout="centered")
 
-# ==============================================================================
-# מתג אבטחה ואישור הפעלה (Kill-Switch)
-APP_ACTIVE = True
-# ==============================================================================
+# הורדת פונקציה לפונט Arial שתומך בעברית
+FONT_PATH = "arial.ttf"
+if not os.path.exists(FONT_PATH):
+    try:
+        urllib.request.urlretrieve("https://github.com/matomo-org/matomo/raw/master/plugins/ImageGraph/fonts/arial.ttf", FONT_PATH)
+    except Exception:
+        pass
 
-if not APP_ACTIVE:
-    st.error("⛔ המערכת אינה פעילה כעת. אנא פנה למפתח המערכת לקבלת גישה.")
-    st.stop()
-
-# פונקציה לניקוי תווים שאינם ב-latin-1 כדי למנוע קריסת קידוד ב-FPDF
-def clean_text(text):
+# פונקציה להיפוך טקסט בעברית (RTL) עבור FPDF
+def fix_hebrew(text):
     if not text:
         return ""
-    # המרה בטוחה לפורמט שנתמך ע"י פונטים סטנדרטיים ב-PDF
-    return str(text).encode('latin-1', 'replace').decode('latin-1')
+    words = str(text).split(' ')
+    fixed_words = []
+    for word in words:
+        if any("\u0590" <= c <= "\u05fe" for c in word):
+            fixed_words.append(word[::-1])
+        else:
+            fixed_words.append(word)
+    return " ".join(reversed(fixed_words))
 
-# --- מחלקת יצירת PDF הנדסי ומעוצב ---
+# --- מחלקת יצירת PDF ---
 class TrafficInspectionPDF(FPDF):
     def header(self):
-        # פס כותרת כחול כהה
         self.set_fill_color(24, 43, 73)
         self.rect(0, 0, 210, 28, 'F')
         
-        # שם החברה בראש הדו"ח
-        self.set_font("Helvetica", "B", 14)
+        if os.path.exists(FONT_PATH):
+            self.add_font("FreeArial", "", FONT_PATH)
+            self.add_font("FreeArial", "B", FONT_PATH)
+            self.set_font("FreeArial", "B", 14)
+        else:
+            self.set_font("Helvetica", "B", 14)
+            
         self.set_text_color(255, 255, 255)
-        self.cell(0, 7, "D.D. ENGINEERS LTD", ln=True, align="C")
+        self.cell(0, 7, fix_hebrew("ד.ד מהנדסים בע''מ - D.D. ENGINEERS LTD"), ln=True, align="C")
         
-        # כותרת הדו"ח
-        self.set_font("Helvetica", "B", 12)
-        self.cell(0, 6, "TRAFFIC CONTROL INSPECTION REPORT", ln=True, align="C")
+        self.set_font("FreeArial" if os.path.exists(FONT_PATH) else "Helvetica", "B", 12)
+        self.cell(0, 6, fix_hebrew("דו\"ח פיקוח ואכיפת הסדרי תנועה"), ln=True, align="C")
         
-        self.set_font("Helvetica", "I", 8)
-        self.cell(0, 5, "Official Field Traffic Management Record", ln=True, align="C")
+        self.set_font("FreeArial" if os.path.exists(FONT_PATH) else "Helvetica", "", 8)
+        self.cell(0, 5, fix_hebrew("מסמך פיקוח שטח רשמי"), ln=True, align="C")
         self.ln(8)
 
     def footer(self):
         self.set_y(-15)
-        self.set_font("Helvetica", "I", 7)
+        font_name = "FreeArial" if os.path.exists(FONT_PATH) else "Helvetica"
+        self.set_font(font_name, "", 7)
         self.set_text_color(128, 128, 128)
-        copyright_text = "Page %d | (c) All Rights Reserved to Netanel Oz Harary. Unauthorized use or distribution is strictly prohibited." % self.page_no()
+        copyright_text = fix_hebrew("כל הזכויות שמורות לנתנאל עוז הררי © | עמוד %d" % self.page_no())
         self.cell(0, 10, copyright_text, align="C")
 
 def generate_pdf(site_title, junction_name, inspector, license_no, date_str, work_type, notes, photo_sections):
     pdf = TrafficInspectionPDF()
+    
+    font_name = "Helvetica"
+    if os.path.exists(FONT_PATH):
+        pdf.add_font("FreeArial", "", FONT_PATH)
+        pdf.add_font("FreeArial", "B", FONT_PATH)
+        font_name = "FreeArial"
+
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
-    
     pdf.set_text_color(40, 40, 40)
     
     # 1. כותרת הפרויקט
-    pdf.set_font("Helvetica", "B", 13)
-    pdf.cell(0, 8, f"Project Site: {clean_text(site_title)}", ln=True)
+    pdf.set_font(font_name, "B", 13)
+    pdf.cell(0, 8, fix_hebrew(f"שם האתר / פרויקט: {site_title}"), ln=True, align="R")
     pdf.set_draw_color(24, 43, 73)
     pdf.set_line_width(0.8)
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
@@ -66,94 +82,102 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
     
     # 2. טבלת נתונים מרכזית
     pdf.set_fill_color(240, 244, 248)
-    pdf.set_font("Helvetica", "B", 10)
+    pdf.set_font(font_name, "B", 10)
     
     col_w = 95
-    pdf.cell(col_w, 7, f" Junction / Location: {clean_text(junction_name)}", border=1, fill=True)
+    pdf.cell(col_w, 8, fix_hebrew(f"צומת / מיקום: {junction_name}"), border=1, fill=True, align="R")
     
-    inspector_info = f" Inspector: {clean_text(inspector)}"
+    inspector_info = f"מפקח: {inspector}"
     if license_no.strip():
-        inspector_info += f" (Lic. #{clean_text(license_no)})"
-    pdf.cell(col_w, 7, inspector_info, border=1, fill=True, ln=True)
+        inspector_info += f" (רישיון: {license_no})"
+    pdf.cell(col_w, 8, fix_hebrew(inspector_info), border=1, fill=True, ln=True, align="R")
     
-    pdf.cell(col_w, 7, f" Date: {clean_text(date_str)}", border=1, fill=True)
-    pdf.cell(col_w, 7, f" Activity Type: {clean_text(work_type)}", border=1, fill=True, ln=True)
+    pdf.cell(col_w, 8, fix_hebrew(f"תאריך: {date_str}"), border=1, fill=True, align="R")
+    pdf.cell(col_w, 8, fix_hebrew(f"סוג עבודה: {work_type}"), border=1, fill=True, ln=True, align="R")
     
-    pdf.ln(4)
+    pdf.ln(5)
     
     # 3. הערות מפקח
-    pdf.set_font("Helvetica", "B", 11)
-    pdf.cell(0, 6, "Traffic Field Observations & Directives:", ln=True)
-    pdf.set_font("Helvetica", "", 10)
+    pdf.set_font(font_name, "B", 11)
+    pdf.cell(0, 6, fix_hebrew("הערות, ממצאים והנחיות מפקח:"), ln=True, align="R")
+    pdf.set_font(font_name, "", 10)
     
-    notes_text = clean_text(notes) if notes.strip() else "No additional engineering notes recorded."
-    pdf.multi_cell(190, 6, notes_text, border=1)
+    notes_text = fix_hebrew(notes) if notes.strip() else fix_hebrew("לא נרשמו הערות נוספות.")
+    pdf.multi_cell(190, 6, notes_text, border=1, align="R")
     pdf.ln(8)
     
-    # 4. גלריית תמונות
-    def add_photos(title_en, files, prefix):
+    # 4. גלריית תמונות מתוקנת
+    def add_photos(title_he, files, prefix):
         if not files:
             return
             
-        pdf.set_font("Helvetica", "B", 11)
+        pdf.set_font(font_name, "B", 11)
         pdf.set_fill_color(220, 228, 238)
-        pdf.cell(0, 7, f" {title_en}", ln=True, fill=True)
+        pdf.cell(0, 7, fix_hebrew(f" {title_he}"), ln=True, fill=True, align="R")
         pdf.ln(4)
         
         col = 0
         y_start = pdf.get_y()
         
         for i, f in enumerate(files):
-            if pdf.get_y() > 230:
+            # אם אין מספיק מקום לתמונה על העמוד הנוכחי - פתח עמוד חדש
+            if y_start + 70 > 270:
                 pdf.add_page()
                 y_start = pdf.get_y()
                 col = 0
-                
+
+            # שמירת התמונה זמנית בפורמט JPEG
             img = Image.open(f)
-            temp = f"temp_{prefix}_{i}.jpg"
-            img.convert("RGB").save(temp)
+            temp_filename = f"temp_{prefix}_{i}.jpg"
+            img.convert("RGB").save(temp_filename, "JPEG")
             
-            x_pos = 10 if col == 0 else 105
-            curr_y = pdf.get_y() if col == 0 else y_start
+            # חישוב מיקום X לפי עמודה (0 = ימין, 1 = שמאל)
+            x_pos = 110 if col == 0 else 15
+            curr_y = y_start
             
-            pdf.image(temp, x=x_pos, y=curr_y, w=85, h=60)
-            pdf.rect(x_pos, curr_y, 85, 60)
+            # הטמעת התמונה
+            pdf.image(temp_filename, x=x_pos, y=curr_y, w=85, h=55)
+            pdf.rect(x_pos, curr_y, 85, 55)
             
-            pdf.set_xy(x_pos, curr_y + 61)
-            pdf.set_font("Helvetica", "I", 8)
-            pdf.cell(85, 4, f"Photo #{i+1} - {prefix.upper()}", align="C")
+            # כיתוב מתחת לתמונה
+            pdf.set_xy(x_pos, curr_y + 56)
+            pdf.set_font(font_name, "", 8)
+            pdf.cell(85, 4, fix_hebrew(f"תמונה #{i+1}"), align="C")
             
-            if col == 1:
-                pdf.set_y(curr_y + 68)
-                col = 0
-            else:
-                y_start = curr_y
+            if col == 0:
                 col = 1
+            else:
+                col = 0
+                y_start += 65  # מעבר לשורה הבאה
                 
-            if os.path.exists(temp):
-                os.remove(temp)
+            # מחיקת קובץ הזבל הזמני
+            if os.path.exists(temp_filename):
+                os.remove(temp_filename)
                 
         if col == 1:
-            pdf.set_y(y_start + 68)
+            pdf.set_y(y_start + 65)
+        else:
+            pdf.set_y(y_start)
+            
         pdf.ln(4)
 
     for section in photo_sections:
-        add_photos(section["title_en"], section["files"], section["prefix"])
+        add_photos(section["title_he"], section["files"], section["prefix"])
     
-    # 5. חתימת מפקח
+    # 5. חתימה
     if pdf.get_y() > 230:
         pdf.add_page()
         
     pdf.ln(10)
-    pdf.set_font("Helvetica", "B", 10)
+    pdf.set_font(font_name, "B", 10)
     
-    sign_text = f"Inspector: {clean_text(inspector)}"
+    sign_text = f"שם המפקח: {inspector}"
     if license_no.strip():
-        sign_text += f" | License No: {clean_text(license_no)}"
+        sign_text += f" | מס' רישיון: {license_no}"
         
-    pdf.cell(0, 6, sign_text, ln=True)
-    pdf.cell(120, 6, "Signature: _______________________", ln=False)
-    pdf.cell(70, 6, f"Date: {clean_text(date_str)}", ln=True)
+    pdf.cell(0, 6, fix_hebrew(sign_text), ln=True, align="R")
+    pdf.cell(120, 6, fix_hebrew("חתימה: _______________________"), ln=False, align="R")
+    pdf.cell(70, 6, fix_hebrew(f"תאריך: {date_str}"), ln=True, align="R")
     
     return bytes(pdf.output())
 
@@ -161,7 +185,6 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
 # --- ממשק המשתמש (Streamlit UI) ---
 st.title("🚦 ד.ד מהנדסים בע''מ")
 st.subheader("מערכת הפקת דו\"ח מפקח הסדר תנועה")
-st.write("מלא את הפרטים והעלה תמונות להפקת דו\"ח PDF מקצועי מהשטח.")
 
 st.divider()
 
@@ -169,30 +192,30 @@ st.subheader("📋 פרטי האתר והמפקח")
 
 col1, col2 = st.columns(2)
 with col1:
-    site_name = st.text_input("שם האתר / פרויקט (אנגלית/מספרים לדו\"ח)", "Project Center 1")
-    junction_name = st.text_input("שם הצומת / מיקום (אנגלית/מספרים לדו\"ח)", "Junction Herzl-Jabotinsky")
-    inspector_name = st.text_input("שם המפקח", "Netanel Oz")
-    license_no = st.text_input("מספר רישיון / מ.פ (אופציונלי)", "")
+    site_name = st.text_input("שם האתר / פרויקט", "פרויקט מרכז 1")
+    junction_name = st.text_input("שם הצומת / מיקום", "צומת הרצל - ז'בוטינסקי")
+    inspector_name = st.text_input("שם המפקח", "נתנאל עוז")
+    license_no = st.text_input("מספר רישיון / מ.פ", "1015546")
 
 with col2:
     date_val = st.date_input("תאריך הבדיקה")
     work_type = st.selectbox("סוג הפעילות / העבודה", [
-        "Temporary Traffic Arrangement",
-        "Controller Replacement",
-        "Detector Loop Slitting",
-        "Camera Installation",
-        "Lane Shift Approval",
-        "Signage Inspection",
-        "Traffic Light Maintenance",
-        "Periodic Inspection",
-        "Other"
+        "הסדר תנועה זמני",
+        "החלפת מנגנון",
+        "חריצת גלאים",
+        "התקנת מצלמות",
+        "אישור הסטת נתיבים",
+        "בדיקת שילוט",
+        "תחזוקת רמזורים",
+        "ביקורת תקופתית",
+        "אחר"
     ])
 
-notes = st.text_area("הערות מפקח, מפגעים ודגשים (באנגלית/מספרים)", placeholder="Enter engineering notes here...")
+notes = st.text_area("הערות מפקח, מפגעים ודגשים", placeholder="רשום הערות הנדסיות כאן...")
 
 st.divider()
 
-st.subheader("📸 העלאת תמונות (העלה רק לקטגוריות הרלוונטיות)")
+st.subheader("📸 העלאת תמונות")
 
 col_a, col_b = st.columns(2)
 
@@ -215,16 +238,16 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", type="primary", use_container_
         st.error("⚠️ אנא מלא את שם האתר, שם הצומת ושם המפקח.")
     else:
         photo_sections = [
-            {"title_en": "BEFORE WORKS (Initial Field Condition)", "files": before_files, "prefix": "before"},
-            {"title_en": "AFTER WORKS (Final Traffic Arrangement)", "files": after_files, "prefix": "after"},
-            {"title_en": "CONTROLLER REPLACEMENT (Mechanism)", "files": mechanism_files, "prefix": "mechanism"},
-            {"title_en": "DETECTOR LOOP SLITTING", "files": detectors_files, "prefix": "detectors"},
-            {"title_en": "TRAFFIC CAMERA INSTALLATION", "files": cameras_files, "prefix": "cameras"},
-            {"title_en": "APPROVED TRAFFIC PLAN / DRAWING", "files": plan_files, "prefix": "plan"},
-            {"title_en": "MISCELLANEOUS / ATTACHMENTS", "files": misc_files, "prefix": "misc"}
+            {"title_he": "מצב קיים בשטח (לפני העבודות)", "files": before_files, "prefix": "before"},
+            {"title_he": "הסדר תנועה סופי (אחרי העבודות)", "files": after_files, "prefix": "after"},
+            {"title_he": "החלפת מנגנון / בקר תנועה", "files": mechanism_files, "prefix": "mechanism"},
+            {"title_he": "חריצת גלאים", "files": detectors_files, "prefix": "detectors"},
+            {"title_he": "התקנת מצלמות תנועה", "files": cameras_files, "prefix": "cameras"},
+            {"title_he": "תוכנית הסדר תנועה מאושרת", "files": plan_files, "prefix": "plan"},
+            {"title_he": "נספחים / תמונות שונות", "files": misc_files, "prefix": "misc"}
         ]
         
-        with st.spinner("מפיק דו\"ח מפקח מעוצב..."):
+        with st.spinner("מפיק דו\"ח מפקח בעברית..."):
             pdf_bytes = generate_pdf(
                 site_title=site_name,
                 junction_name=junction_name,
