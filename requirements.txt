@@ -1,3 +1,5 @@
 streamlit
-weasyprint
-pillow
+reportlab
+python-bidi
+arabic-reshaper
+Pillow
