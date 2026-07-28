@@ -1,10 +1,6 @@
 import io
 import os
-import smtplib
 import urllib.request
-from email.mime.application import MIMEApplication
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
 import arabic_reshaper
 import streamlit as st
@@ -30,7 +26,7 @@ from reportlab.platypus import (
 # הגדרת תצורת עמוד ב-Streamlit
 st.set_page_config(page_title="דו\"ח מפקח הסדר תנועה - ד.ד מהנדסים בע''מ", page_icon="🚦", layout="centered")
 
-# הורדת פונט עברי אמין (Rubik) מ-Google Fonts
+# הורדת פונט עברי אמין (Rubik) מ-Google Fonts במידת הצורך
 FONT_PATH = "Rubik-Regular.ttf"
 FONT_NAME = 'Helvetica'
 
@@ -48,6 +44,7 @@ if os.path.exists(FONT_PATH):
     except Exception:
         FONT_NAME = 'Helvetica'
 
+# פונקציה לעיבוד טקסט בעברית (הפיכת כיוון וחיבור אותיות)
 def heb(text):
     if not text:
         return ""
@@ -55,6 +52,7 @@ def heb(text):
     bidi_text = get_display(reshaped_text)
     return bidi_text
 
+# מחלקה למספור עמודים וכותרת תחתית ב-PDF
 class NumberedCanvas(canvas.Canvas):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -76,6 +74,7 @@ class NumberedCanvas(canvas.Canvas):
         self.saveState()
         self.setFont(FONT_NAME, 8)
         self.setFillColor(colors.HexColor("#666666"))
+        # הוספת מספר הנייד וזכויות היוצרים בכותרת התחתית
         footer_text = heb(f"כל הזכויות שמורות לנתנאל עוז הררי © | נייד: 054-5520445 | ד.ד מהנדסים בע''מ | עמוד {self._pageNumber} מתוך {page_count}")
         self.drawCentredString(A4[0] / 2.0, 1 * cm, footer_text)
         self.restoreState()
@@ -93,6 +92,7 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
 
     styles = getSampleStyleSheet()
     
+    # סגנונות מעוצבים
     style_header_title = ParagraphStyle('HeaderTitle', fontName=FONT_NAME, fontSize=15, leading=19, textColor=colors.white, alignment=1)
     style_header_sub = ParagraphStyle('HeaderSub', fontName=FONT_NAME, fontSize=12, leading=16, textColor=colors.white, alignment=1)
     style_header_small = ParagraphStyle('HeaderSmall', fontName=FONT_NAME, fontSize=8, leading=10, textColor=colors.HexColor("#e2e8f0"), alignment=1)
@@ -106,6 +106,7 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
 
     story = []
 
+    # 1. באנר כותרת ראשית
     header_data = [
         [Paragraph(heb("ד.ד מהנדסים בע''מ - D.D. ENGINEERS LTD"), style_header_title)],
         [Paragraph(heb("דו\"ח פיקוח ואכיפת הסדרי תנועה"), style_header_sub)],
@@ -122,9 +123,11 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
     story.append(header_table)
     story.append(Spacer(1, 0.4 * cm))
 
+    # 2. שם פרויקט
     story.append(Paragraph(heb(f"שם האתר / פרויקט: {site_title}"), style_proj_title))
     story.append(Spacer(1, 0.2 * cm))
 
+    # 3. טבלת פרטים
     insp_str = f"מפקח: {inspector}"
     if license_no.strip():
         insp_str += f" (רישיון: {license_no})"
@@ -145,6 +148,7 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
     story.append(info_table)
     story.append(Spacer(1, 0.4 * cm))
 
+    # 4. הערות מפקח
     story.append(Paragraph(heb("הערות, ממצאים והנחיות מפקח:"), style_notes_title))
     story.append(Spacer(1, 0.1 * cm))
     
@@ -162,6 +166,7 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
     story.append(notes_table)
     story.append(Spacer(1, 0.5 * cm))
 
+    # 5. תמונות עם תיאורים דינמיים (רשות)
     for section in photo_sections:
         files = section.get("files")
         captions = section.get("captions", [])
@@ -189,6 +194,7 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
 
                 rl_img = RLImage(img_temp, width=8.2 * cm, height=5.5 * cm)
                 
+                # בדיקה אם הוזן תיאור אישי לתמונה
                 custom_cap = captions[i].strip() if i < len(captions) and captions[i].strip() else f"תמונה #{i+1}"
                 cap = Paragraph(heb(custom_cap), style_caption)
                 
@@ -197,6 +203,7 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
             except Exception:
                 continue
 
+        # סידור תמונות בזוגות
         grid_rows = []
         for i in range(0, len(photo_cells), 2):
             if i + 1 < len(photo_cells):
@@ -214,6 +221,7 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
             story.append(KeepTogether([sec_title_table, Spacer(1, 0.2 * cm), grid_table]))
             story.append(Spacer(1, 0.3 * cm))
 
+    # 6. חתימה
     sig_text = f"שם המפקח: {inspector}"
     if license_no.strip():
         sig_text += f" | מס' רישיון: {license_no}"
@@ -229,35 +237,13 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
     ]))
     story.append(KeepTogether([Spacer(1, 0.5 * cm), sig_table]))
 
+    # בניית ה-PDF
     doc.build(story, canvasmaker=NumberedCanvas)
     buffer.seek(0)
     return buffer.getvalue()
 
 
-def send_email_autofilled(recipient_email, subject, body_text, pdf_data, filename):
-    # משיכת הפרטים מתוך הגדרות השרת הנסתרות (Secrets)
-    sender_email = st.secrets["email"]["sender_email"]
-    sender_password = st.secrets["email"]["sender_password"]
-
-    msg = MIMEMultipart()
-    msg['From'] = sender_email
-    msg['To'] = recipient_email
-    msg['Subject'] = subject
-
-    msg.attach(MIMEText(body_text, 'plain', 'utf-8'))
-
-    part = MIMEApplication(pdf_data, Name=filename)
-    part['Content-Disposition'] = f'attachment; filename="{filename}"'
-    msg.attach(part)
-
-    server = smtplib.SMTP('smtp.gmail.com', 587)
-    server.starttls()
-    server.login(sender_email, sender_password)
-    server.send_message(msg)
-    server.quit()
-
-
-# --- UI ---
+# --- ממשק המשתמש (Streamlit UI) ---
 st.title("🚦 ד.ד מהנדסים בע''מ")
 st.subheader("מערכת הפקת דו\"ח מפקח הסדר תנועה")
 
@@ -318,6 +304,7 @@ misc_files, misc_caps = render_upload_section("תמונות - שונות / נס�
 
 st.divider()
 
+# יצירת ה-PDF
 if st.button("🚀 הפק דו\"ח מפקח PDF", type="primary", use_container_width=True):
     if not site_name or not junction_name or not inspector_name:
         st.error("⚠️ אנא מלא את שם האתר, שם הצומת ושם המפקח.")
@@ -351,6 +338,7 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", type="primary", use_container_
             except Exception as e:
                 st.error(f"שגיאה בהפקת ה-PDF: {e}")
 
+# כפתור ההורדה מופיע מיד לאחר יצירת הקובץ
 if 'pdf_bytes' in st.session_state:
     st.download_button(
         label="⬇️ הורד דו\"ח PDF למכשיר",
@@ -359,28 +347,5 @@ if 'pdf_bytes' in st.session_state:
         mime="application/pdf",
         use_container_width=True
     )
-    
-    st.divider()
-    
-    # ממשק שליחה פשוט לחלוטין למשתמש!
-    st.subheader("📧 שליחת הדו\"ח במייל")
-    recipient_email = st.text_input("הכנס כתובת מייל לקבלת הדו\"ח", placeholder="example@domain.com")
 
-    if st.button("✉️ שלח דו\"ח בלחיצת כפתור", use_container_width=True):
-        if not recipient_email:
-            st.warning("⚠️ אנא הכנס כתובת מייל יעד.")
-        else:
-            with st.spinner("שולח את הדו\"ח לכתובת היעד..."):
-                try:
-                    send_email_autofilled(
-                        recipient_email=recipient_email,
-                        subject=f"דו\"ח פיקוח - {site_name} - {date_val}",
-                        body_text=f"שלום,\n\nמצורף דו\"ח פיקוח הסדר תנועה עבור {site_name}.\n\nבברכה,\n{inspector_name}\nד.ד מהנדסים בע''מ",
-                        pdf_data=st.session_state['pdf_bytes'],
-                        filename=st.session_state['pdf_filename']
-                    )
-                    st.success(f"📬 הדו\"ח נשלח בהצלחה ל- {recipient_email}")
-                except Exception as e:
-                    st.error(f"שגיאה בשליחת המייל (וודא שהגדרת Secrets ב-Streamlit Cloud): {e}")
-
-st.caption("© כל הזכויות שמורות לנתנאל עוז הררי (Netanel Oz Harary) | נייד: 054-5520445. אין לעשות שימוש או להפיץ ללא אישור בכתב.")
+st.caption("© כל הזכויות שמורות לנתנאל עוז הררי | נייד: 054-5520445. אין לעשות שימוש או להפיץ ללא אישור בכתב.")
