@@ -21,18 +21,19 @@ from reportlab.platypus import (
 # הגדרת תצורת עמוד ב-Streamlit
 st.set_page_config(page_title="דו\"ח מפקח הסדר תנועה - ד.ד מהנדסים בע''מ", page_icon="🚦", layout="centered")
 
-# 1. הורדת פונט Arial התומך בעברית
-FONT_PATH = "arial.ttf"
+# הורדת פונט עברי אמין (Rubik) מ-Google Fonts
+FONT_PATH = "Rubik-Regular.ttf"
 if not os.path.exists(FONT_PATH):
+    font_url = "https://github.com/google/fonts/raw/main/ofl/rubik/Rubik%5Bwght%5D.ttf"
     try:
-        urllib.request.urlretrieve("https://github.com/matomo-org/matomo/raw/master/plugins/ImageGraph/fonts/arial.ttf", FONT_PATH)
+        urllib.request.urlretrieve(font_url, FONT_PATH)
     except Exception:
         pass
 
 # רישום הפונט ב-ReportLab
 if os.path.exists(FONT_PATH):
-    pdfmetrics.registerFont(TTFont('HebrewArial', FONT_PATH))
-    FONT_NAME = 'HebrewArial'
+    pdfmetrics.registerFont(TTFont('HebrewFont', FONT_PATH))
+    FONT_NAME = 'HebrewFont'
 else:
     FONT_NAME = 'Helvetica'
 
@@ -84,7 +85,7 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
     styles = getSampleStyleSheet()
     
     # סגנונות מעוצבים
-    style_header_title = ParagraphStyle('HeaderTitle', fontName=FONT_NAME, fontSize=16, leading=20, textColor=colors.white, alignment=1)
+    style_header_title = ParagraphStyle('HeaderTitle', fontName=FONT_NAME, fontSize=15, leading=19, textColor=colors.white, alignment=1)
     style_header_sub = ParagraphStyle('HeaderSub', fontName=FONT_NAME, fontSize=12, leading=16, textColor=colors.white, alignment=1)
     style_header_small = ParagraphStyle('HeaderSmall', fontName=FONT_NAME, fontSize=8, leading=10, textColor=colors.HexColor("#e2e8f0"), alignment=1)
 
@@ -106,8 +107,8 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
     header_table = Table(header_data, colWidths=[18 * cm])
     header_table.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#182b49")),
-        ('TOPPADDING', (0,0), (-1,-1), 4),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('TOPPADDING', (0,0), (-1,-1), 6),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
     ]))
@@ -194,7 +195,7 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
         grid_rows = []
         for i in range(0, len(photo_cells), 2):
             if i + 1 < len(photo_cells):
-                grid_rows.append([photo_cells[i+1], photo_cells[i]])  # ימין ושמאל בעברית
+                grid_rows.append([photo_cells[i+1], photo_cells[i]])
             else:
                 grid_rows.append(["", photo_cells[i]])
 
