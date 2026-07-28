@@ -15,6 +15,13 @@ if not APP_ACTIVE:
     st.error("⛔ המערכת אינה פעילה כעת. אנא פנה למפתח המערכת לקבלת גישה.")
     st.stop()
 
+# פונקציה לניקוי תווים שאינם ב-latin-1 כדי למנוע קריסת קידוד ב-FPDF
+def clean_text(text):
+    if not text:
+        return ""
+    # המרה בטוחה לפורמט שנתמך ע"י פונטים סטנדרטיים ב-PDF
+    return str(text).encode('latin-1', 'replace').decode('latin-1')
+
 # --- מחלקת יצירת PDF הנדסי ומעוצב ---
 class TrafficInspectionPDF(FPDF):
     def header(self):
@@ -25,7 +32,7 @@ class TrafficInspectionPDF(FPDF):
         # שם החברה בראש הדו"ח
         self.set_font("Helvetica", "B", 14)
         self.set_text_color(255, 255, 255)
-        self.cell(0, 7, "D.D. ENGINEERS LTD | D.D. ENGINEERS LTD", ln=True, align="C")
+        self.cell(0, 7, "D.D. ENGINEERS LTD", ln=True, align="C")
         
         # כותרת הדו"ח
         self.set_font("Helvetica", "B", 12)
@@ -39,8 +46,7 @@ class TrafficInspectionPDF(FPDF):
         self.set_y(-15)
         self.set_font("Helvetica", "I", 7)
         self.set_text_color(128, 128, 128)
-        # זכויות יוצרים בתחתית כל עמוד ב-PDF
-        copyright_text = "Page %d | © All Rights Reserved to Netanel Oz Harary. Unauthorized use or distribution is strictly prohibited." % self.page_no()
+        copyright_text = "Page %d | (c) All Rights Reserved to Netanel Oz Harary. Unauthorized use or distribution is strictly prohibited." % self.page_no()
         self.cell(0, 10, copyright_text, align="C")
 
 def generate_pdf(site_title, junction_name, inspector, license_no, date_str, work_type, notes, photo_sections):
@@ -52,7 +58,7 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
     
     # 1. כותרת הפרויקט
     pdf.set_font("Helvetica", "B", 13)
-    pdf.cell(0, 8, f"Project Site: {site_title}", ln=True)
+    pdf.cell(0, 8, f"Project Site: {clean_text(site_title)}", ln=True)
     pdf.set_draw_color(24, 43, 73)
     pdf.set_line_width(0.8)
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
@@ -63,16 +69,15 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
     pdf.set_font("Helvetica", "B", 10)
     
     col_w = 95
-    pdf.cell(col_w, 7, f" Junction / Location: {junction_name}", border=1, fill=True)
+    pdf.cell(col_w, 7, f" Junction / Location: {clean_text(junction_name)}", border=1, fill=True)
     
-    # הצגת רישיון אם הוקלד
-    inspector_info = f" Inspector: {inspector}"
+    inspector_info = f" Inspector: {clean_text(inspector)}"
     if license_no.strip():
-        inspector_info += f" (Lic. #{license_no})"
+        inspector_info += f" (Lic. #{clean_text(license_no)})"
     pdf.cell(col_w, 7, inspector_info, border=1, fill=True, ln=True)
     
-    pdf.cell(col_w, 7, f" Date: {date_str}", border=1, fill=True)
-    pdf.cell(col_w, 7, f" Activity Type: {work_type}", border=1, fill=True, ln=True)
+    pdf.cell(col_w, 7, f" Date: {clean_text(date_str)}", border=1, fill=True)
+    pdf.cell(col_w, 7, f" Activity Type: {clean_text(work_type)}", border=1, fill=True, ln=True)
     
     pdf.ln(4)
     
@@ -81,14 +86,14 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
     pdf.cell(0, 6, "Traffic Field Observations & Directives:", ln=True)
     pdf.set_font("Helvetica", "", 10)
     
-    notes_text = notes if notes.strip() else "No additional engineering notes recorded."
+    notes_text = clean_text(notes) if notes.strip() else "No additional engineering notes recorded."
     pdf.multi_cell(190, 6, notes_text, border=1)
     pdf.ln(8)
     
-    # פונקציית עזר לגלריית תמונות - מוסיפה קטגוריות רק אם הועלו תמונות בפועל
+    # 4. גלריית תמונות
     def add_photos(title_en, files, prefix):
         if not files:
-            return  # מדלג על קטגוריה שאין בה תמונות
+            return
             
         pdf.set_font("Helvetica", "B", 11)
         pdf.set_fill_color(220, 228, 238)
@@ -132,24 +137,23 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
             pdf.set_y(y_start + 68)
         pdf.ln(4)
 
-    # 4. הרצת קטגוריות התמונות (רק הפעילות יופיעו)
     for section in photo_sections:
         add_photos(section["title_en"], section["files"], section["prefix"])
     
-    # 5. חתימת מפקח רשמית בתחתית
+    # 5. חתימת מפקח
     if pdf.get_y() > 230:
         pdf.add_page()
         
     pdf.ln(10)
     pdf.set_font("Helvetica", "B", 10)
     
-    sign_text = f"Inspector: {inspector}"
+    sign_text = f"Inspector: {clean_text(inspector)}"
     if license_no.strip():
-        sign_text += f" | License No: {license_no}"
+        sign_text += f" | License No: {clean_text(license_no)}"
         
     pdf.cell(0, 6, sign_text, ln=True)
     pdf.cell(120, 6, "Signature: _______________________", ln=False)
-    pdf.cell(70, 6, f"Date: {date_str}", ln=True)
+    pdf.cell(70, 6, f"Date: {clean_text(date_str)}", ln=True)
     
     return pdf.output(dest='S').encode('latin1')
 
@@ -165,30 +169,29 @@ st.subheader("📋 פרטי האתר והמפקח")
 
 col1, col2 = st.columns(2)
 with col1:
-    site_name = st.text_input("שם האתר / פרויקט", "פרויקט תשתיות מרכז")
-    junction_name = st.text_input("שם הצומת / מיקום מדויק", "צומת הרצל - ז'בוטינסקי")
-    inspector_name = st.text_input("שם המפקח / ממלא הדו\"ח", "")
+    site_name = st.text_input("שם האתר / פרויקט (אנגלית/מספרים לדו\"ח)", "Project Center 1")
+    junction_name = st.text_input("שם הצומת / מיקום (אנגלית/מספרים לדו\"ח)", "Junction Herzl-Jabotinsky")
+    inspector_name = st.text_input("שם המפקח", "Netanel Oz")
     license_no = st.text_input("מספר רישיון / מ.פ (אופציונלי)", "")
 
 with col2:
     date_val = st.date_input("תאריך הבדיקה")
     work_type = st.selectbox("סוג הפעילות / העבודה", [
-        "הסדר תנועה זמני (עבודות)",
-        "החלפת מנגנון",
-        "חריצת גלאים",
-        "התקנת מצלמות",
-        "אישור הסטת נתיבים",
-        "בדיקת שילוט ותמרור",
-        "תחזוקת רמזורים",
-        "סיור פיקוח תקופתי",
-        "אחר"
+        "Temporary Traffic Arrangement",
+        "Controller Replacement",
+        "Detector Loop Slitting",
+        "Camera Installation",
+        "Lane Shift Approval",
+        "Signage Inspection",
+        "Traffic Light Maintenance",
+        "Periodic Inspection",
+        "Other"
     ])
 
-notes = st.text_area("הערות מפקח, מפגעים ודגשים", placeholder="רשום כאן פירוט לגבי התמרור, הנתיבים, ציוד שנבדק, בטיחות...")
+notes = st.text_area("הערות מפקח, מפגעים ודגשים (באנגלית/מספרים)", placeholder="Enter engineering notes here...")
 
 st.divider()
 
-# העלאת תמונות לפי קטגוריות
 st.subheader("📸 העלאת תמונות (העלה רק לקטגוריות הרלוונטיות)")
 
 col_a, col_b = st.columns(2)
@@ -211,7 +214,6 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", type="primary", use_container_
     if not site_name or not junction_name or not inspector_name:
         st.error("⚠️ אנא מלא את שם האתר, שם הצומת ושם המפקח.")
     else:
-        # אריזת הקטגוריות שנבחרו
         photo_sections = [
             {"title_en": "BEFORE WORKS (Initial Field Condition)", "files": before_files, "prefix": "before"},
             {"title_en": "AFTER WORKS (Final Traffic Arrangement)", "files": after_files, "prefix": "after"},
@@ -239,10 +241,9 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", type="primary", use_container_
         st.download_button(
             label="⬇️ הורד דו\"ח PDF למכשיר",
             data=pdf_bytes,
-            file_name=f"DD_Engineers_Report_{junction_name.replace(' ', '_')}_{date_val}.pdf",
+            file_name=f"DD_Engineers_Report_{date_val}.pdf",
             mime="application/pdf",
             use_container_width=True
         )
 
-# --- הצגת זכויות יוצרים בתחתית האפליקציה ---
 st.caption("© כל הזכויות שמורות לנתנאל עוז הררי (Netanel Oz Harary). אין לעשות שימוש או להפיץ ללא אישור בכתב.")
