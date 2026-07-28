@@ -1,270 +1,233 @@
-import base64
 import io
+import os
+import urllib.request
 import streamlit as st
 from PIL import Image
-from weasyprint import HTML
+
+import arabic_reshaper
+from bidi.algorithm import get_display
+
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import cm
+from reportlab.pdfgen import canvas
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, KeepTogether
+)
 
 # הגדרת תצורת עמוד ב-Streamlit
 st.set_page_config(page_title="דו\"ח מפקח הסדר תנועה - ד.ד מהנדסים בע''מ", page_icon="🚦", layout="centered")
 
-def image_to_base64(uploaded_file):
-    """ממיר תמונה שהועלתה למחרוזת Base64 כדי להטמיע ב-HTML"""
+# 1. הורדת פונט Arial התומך בעברית
+FONT_PATH = "arial.ttf"
+if not os.path.exists(FONT_PATH):
     try:
-        img = Image.open(uploaded_file)
-        img = img.convert("RGB")
-        buffered = io.BytesIO()
-        img.save(buffered, format="JPEG", quality=85)
-        img_str = base64.b64encode(buffered.getvalue()).decode()
-        return f"data:image/jpeg;base64,{img_str}"
-    except Exception as e:
-        return None
+        urllib.request.urlretrieve("https://github.com/matomo-org/matomo/raw/master/plugins/ImageGraph/fonts/arial.ttf", FONT_PATH)
+    except Exception:
+        pass
 
-def generate_pdf_html(site_title, junction_name, inspector, license_no, date_str, work_type, notes, photo_sections):
+# רישום הפונט ב-ReportLab
+if os.path.exists(FONT_PATH):
+    pdfmetrics.registerFont(TTFont('HebrewArial', FONT_PATH))
+    FONT_NAME = 'HebrewArial'
+else:
+    FONT_NAME = 'Helvetica'
+
+# פונקציה לעיבוד טקסט בעברית (הפיכת כיוון וחיבור אותיות)
+def heb(text):
+    if not text:
+        return ""
+    reshaped_text = arabic_reshaper.reshape(str(text))
+    bidi_text = get_display(reshaped_text)
+    return bidi_text
+
+# מחלקה למספור עמודים וכותרת תחתית
+class NumberedCanvas(canvas.Canvas):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._saved_page_states = []
+
+    def showPage(self):
+        self._saved_page_states.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        num_pages = len(self._saved_page_states)
+        for state in self._saved_page_states:
+            self.__dict__.update(state)
+            self.draw_page_number(num_pages)
+            super().showPage()
+        super().save()
+
+    def draw_page_number(self, page_count):
+        self.saveState()
+        self.setFont(FONT_NAME, 8)
+        self.setFillColor(colors.HexColor("#666666"))
+        footer_text = heb(f"כל הזכויות שמורות לנתנאל עוז הררי © | ד.ד מהנדסים בע''מ | עמוד {self._pageNumber} מתוך {page_count}")
+        self.drawCentredString(A4[0] / 2.0, 1 * cm, footer_text)
+        self.restoreState()
+
+def generate_pdf(site_title, junction_name, inspector, license_no, date_str, work_type, notes, photo_sections):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=1.5 * cm,
+        rightMargin=1.5 * cm,
+        topMargin=1.5 * cm,
+        bottomMargin=2.0 * cm
+    )
+
+    styles = getSampleStyleSheet()
     
-    # בניית גלריית התמונות ב-HTML
-    photos_html = ""
+    # סגנונות מעוצבים
+    style_header_title = ParagraphStyle('HeaderTitle', fontName=FONT_NAME, fontSize=16, leading=20, textColor=colors.white, alignment=1)
+    style_header_sub = ParagraphStyle('HeaderSub', fontName=FONT_NAME, fontSize=12, leading=16, textColor=colors.white, alignment=1)
+    style_header_small = ParagraphStyle('HeaderSmall', fontName=FONT_NAME, fontSize=8, leading=10, textColor=colors.HexColor("#e2e8f0"), alignment=1)
+
+    style_proj_title = ParagraphStyle('ProjTitle', fontName=FONT_NAME, fontSize=13, leading=16, textColor=colors.HexColor("#182b49"), alignment=2)
+    style_cell_label = ParagraphStyle('CellLabel', fontName=FONT_NAME, fontSize=9, leading=12, textColor=colors.HexColor("#0f172a"), alignment=2)
+    style_notes_title = ParagraphStyle('NotesTitle', fontName=FONT_NAME, fontSize=11, leading=14, textColor=colors.HexColor("#182b49"), alignment=2)
+    style_notes_content = ParagraphStyle('NotesContent', fontName=FONT_NAME, fontSize=9.5, leading=13, textColor=colors.HexColor("#1e293b"), alignment=2)
+    style_sec_header = ParagraphStyle('SecHeader', fontName=FONT_NAME, fontSize=10, leading=13, textColor=colors.HexColor("#0f172a"), alignment=2)
+    style_caption = ParagraphStyle('Caption', fontName=FONT_NAME, fontSize=8, leading=10, textColor=colors.HexColor("#475569"), alignment=1)
+
+    story = []
+
+    # 1. באנר כותרת ראשית
+    header_data = [
+        [Paragraph(heb("ד.ד מהנדסים בע''מ - D.D. ENGINEERS LTD"), style_header_title)],
+        [Paragraph(heb("דו\"ח פיקוח ואכיפת הסדרי תנועה"), style_header_sub)],
+        [Paragraph(heb("מסמך פיקוח שטח רשמי"), style_header_small)]
+    ]
+    header_table = Table(header_data, colWidths=[18 * cm])
+    header_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#182b49")),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+    ]))
+    story.append(header_table)
+    story.append(Spacer(1, 0.4 * cm))
+
+    # 2. שם פרויקט
+    story.append(Paragraph(heb(f"שם האתר / פרויקט: {site_title}"), style_proj_title))
+    story.append(Spacer(1, 0.2 * cm))
+
+    # 3. טבלת פרטים
+    insp_str = f"מפקח: {inspector}"
+    if license_no.strip():
+        insp_str += f" (רישיון: {license_no})"
+
+    info_data = [
+        [Paragraph(heb(insp_str), style_cell_label), Paragraph(heb(f"צומת / מיקום: {junction_name}"), style_cell_label)],
+        [Paragraph(heb(f"סוג עבודה: {work_type}"), style_cell_label), Paragraph(heb(f"תאריך: {date_str}"), style_cell_label)]
+    ]
+    info_table = Table(info_data, colWidths=[9 * cm, 9 * cm])
+    info_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#f1f5f9")),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e1")),
+        ('TOPPADDING', (0,0), (-1,-1), 6),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ('LEFTPADDING', (0,0), (-1,-1), 8),
+        ('RIGHTPADDING', (0,0), (-1,-1), 8),
+    ]))
+    story.append(info_table)
+    story.append(Spacer(1, 0.4 * cm))
+
+    # 4. הערות מפקח
+    story.append(Paragraph(heb("הערות, ממצאים והנחיות מפקח:"), style_notes_title))
+    story.append(Spacer(1, 0.1 * cm))
+    
+    notes_text = notes.strip() if notes.strip() else "לא נרשמו הערות נוספות."
+    notes_data = [[Paragraph(heb(notes_text), style_notes_content)]]
+    notes_table = Table(notes_data, colWidths=[18 * cm])
+    notes_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), colors.white),
+        ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e1")),
+        ('TOPPADDING', (0,0), (-1,-1), 8),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+        ('LEFTPADDING', (0,0), (-1,-1), 8),
+        ('RIGHTPADDING', (0,0), (-1,-1), 8),
+    ]))
+    story.append(notes_table)
+    story.append(Spacer(1, 0.5 * cm))
+
+    # 5. תמונות
     for section in photo_sections:
         files = section.get("files")
-        if files:
-            photos_html += f"""
-            <div class="section-title">{section['title_he']}</div>
-            <div class="photo-grid">
-            """
-            for i, f in enumerate(files):
-                b64_img = image_to_base64(f)
-                if b64_img:
-                    photos_html += f"""
-                    <div class="photo-card">
-                        <img src="{b64_img}" alt="תמונה">
-                        <div class="photo-caption">תמונה #{i+1}</div>
-                    </div>
-                    """
-            photos_html += "</div>"
+        if not files:
+            continue
 
-    if not photos_html:
-        photos_html = "<p style='color: #666;'>לא צורפו תמונות לדו\"ח זה.</p>"
+        sec_title_data = [[Paragraph(heb(section['title_he']), style_sec_header)]]
+        sec_title_table = Table(sec_title_data, colWidths=[18 * cm])
+        sec_title_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#e2e8f0")),
+            ('LINELEFT', (0,0), (0,-1), 3, colors.HexColor("#182b49")),
+            ('TOPPADDING', (0,0), (-1,-1), 4),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+            ('RIGHTPADDING', (0,0), (-1,-1), 8),
+        ]))
 
-    # תבנית ה-HTML המלאה לעיצוב ה-PDF
-    html_content = f"""
-    <!DOCTYPE html>
-    <html dir="rtl" lang="he">
-    <head>
-        <meta charset="UTF-8">
-        <style>
-            @page {{
-                size: A4;
-                margin: 12mm 15mm 15mm 15mm;
-                @bottom-center {{
-                    content: "כל הזכויות שמורות לנתנאל עוז הררי © | ד.ד מהנדסים בע''מ";
-                    font-family: 'Arial', 'Segoe UI', sans-serif;
-                    font-size: 8pt;
-                    color: #777777;
-                }}
-            }}
-            
-            body {{
-                font-family: 'Arial', 'Segoe UI', sans-serif;
-                margin: 0;
-                padding: 0;
-                color: #222222;
-                direction: rtl;
-            }}
+        photo_cells = []
+        for i, f in enumerate(files):
+            try:
+                img = Image.open(f)
+                img = img.convert("RGB")
+                img_temp = io.BytesIO()
+                img.save(img_temp, format="JPEG", quality=80)
+                img_temp.seek(0)
 
-            /* כותרת מודרנית */
-            .header-banner {{
-                background-color: #182b49;
-                color: #ffffff;
-                text-align: center;
-                padding: 15px 10px;
-                margin-bottom: 20px;
-                border-radius: 4px;
-            }}
+                rl_img = RLImage(img_temp, width=8.2 * cm, height=5.5 * cm)
+                cap = Paragraph(heb(f"תמונה #{i+1}"), style_caption)
+                
+                cell_content = [rl_img, Spacer(1, 2), cap]
+                photo_cells.append(cell_content)
+            except Exception:
+                continue
 
-            .header-banner h1 {{
-                margin: 0;
-                font-size: 18pt;
-                font-weight: bold;
-                letter-spacing: 0.5px;
-            }}
+        # סידור תמונות בזוגות (גריד של 2 בעמודה)
+        grid_rows = []
+        for i in range(0, len(photo_cells), 2):
+            if i + 1 < len(photo_cells):
+                grid_rows.append([photo_cells[i+1], photo_cells[i]])  # ימין ושמאל בעברית
+            else:
+                grid_rows.append(["", photo_cells[i]])
 
-            .header-banner h2 {{
-                margin: 4px 0 0 0;
-                font-size: 13pt;
-                font-weight: normal;
-                color: #e2e8f0;
-            }}
+        if grid_rows:
+            grid_table = Table(grid_rows, colWidths=[9 * cm, 9 * cm])
+            grid_table.setStyle(TableStyle([
+                ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+            ]))
+            story.append(KeepTogether([sec_title_table, Spacer(1, 0.2 * cm), grid_table]))
+            story.append(Spacer(1, 0.3 * cm))
 
-            .header-banner p {{
-                margin: 3px 0 0 0;
-                font-size: 8pt;
-                color: #cbd5e1;
-            }}
+    # 6. חתימה
+    sig_text = f"שם המפקח: {inspector}"
+    if license_no.strip():
+        sig_text += f" | מס' רישיון: {license_no}"
 
-            /* כותרת פרויקט */
-            .project-title {{
-                font-size: 14pt;
-                font-weight: bold;
-                color: #182b49;
-                border-bottom: 2px solid #182b49;
-                padding-bottom: 4px;
-                margin-bottom: 12px;
-            }}
+    sig_data = [
+        [Paragraph(heb(f"תאריך: {date_str}"), style_cell_label), Paragraph(heb(sig_text), style_cell_label)],
+        ["", Paragraph(heb("חתימה: _______________________"), style_cell_label)]
+    ]
+    sig_table = Table(sig_data, colWidths=[9 * cm, 9 * cm])
+    sig_table.setStyle(TableStyle([
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+    ]))
+    story.append(KeepTogether([Spacer(1, 0.5 * cm), sig_table]))
 
-            /* טבלת פרטים */
-            .info-table {{
-                width: 100%;
-                border-collapse: collapse;
-                margin-bottom: 15px;
-            }}
-
-            .info-table td {{
-                width: 50%;
-                padding: 8px 12px;
-                background-color: #f1f5f9;
-                border: 1px solid #cbd5e1;
-                font-size: 10pt;
-            }}
-
-            .info-table td span.label {{
-                font-weight: bold;
-                color: #0f172a;
-            }}
-
-            /* תיבת הערות */
-            .notes-box {{
-                border: 1px solid #cbd5e1;
-                background-color: #ffffff;
-                padding: 10px 12px;
-                border-radius: 4px;
-                margin-bottom: 20px;
-                min-height: 50px;
-                font-size: 10pt;
-                line-height: 1.4;
-            }}
-
-            .notes-title {{
-                font-weight: bold;
-                color: #182b49;
-                font-size: 11pt;
-                margin-bottom: 6px;
-            }}
-
-            /* גלריית תמונות ב-Grid */
-            .section-title {{
-                background-color: #e2e8f0;
-                color: #0f172a;
-                font-weight: bold;
-                padding: 6px 10px;
-                font-size: 11pt;
-                margin-top: 15px;
-                margin-bottom: 10px;
-                border-right: 4px solid #182b49;
-                page-break-after: avoid;
-            }}
-
-            .photo-grid {{
-                display: table;
-                width: 100%;
-                margin-bottom: 10px;
-                page-break-inside: avoid;
-            }}
-
-            .photo-card {{
-                display: table-cell;
-                width: 48%;
-                padding: 1%;
-                vertical-align: top;
-                box-sizing: border-box;
-                text-align: center;
-            }}
-
-            .photo-card img {{
-                width: 100%;
-                max-height: 200px;
-                object-fit: cover;
-                border: 1px solid #cbd5e1;
-                border-radius: 4px;
-            }}
-
-            .photo-caption {{
-                font-size: 8.5pt;
-                color: #475569;
-                margin-top: 4px;
-            }}
-
-            /* חתימה */
-            .signature-container {{
-                margin-top: 30px;
-                padding-top: 15px;
-                border-top: 1px solid #cbd5e1;
-                page-break-inside: avoid;
-            }}
-
-            .signature-table {{
-                width: 100%;
-                font-size: 10pt;
-            }}
-
-            .signature-table td {{
-                padding: 4px 0;
-            }}
-        </style>
-    </head>
-    <body>
-
-        <!-- כותרת ראשית -->
-        <div class="header-banner">
-            <h1>ד.ד מהנדסים בע''מ - D.D. ENGINEERS LTD</h1>
-            <h2>דו"ח פיקוח ואכיפת הסדרי תנועה</h2>
-            <p>מסמך פיקוח שטח רשמי</p>
-        </div>
-
-        <!-- שם הפרויקט -->
-        <div class="project-title">
-            שם האתר / פרויקט: {site_title}
-        </div>
-
-        <!-- טבלת פרטי בדיקה -->
-        <table class="info-table">
-            <tr>
-                <td><span class="label">צומת / מיקום:</span> {junction_name}</td>
-                <td><span class="label">מפקח:</span> {inspector} {f'(רישיון: {license_no})' if license_no else ''}</td>
-            </tr>
-            <tr>
-                <td><span class="label">תאריך:</span> {date_str}</td>
-                <td><span class="label">סוג עבודה:</span> {work_type}</td>
-            </tr>
-        </table>
-
-        <!-- הערות מפקח -->
-        <div class="notes-title">הערות, ממצאים והנחיות מפקח:</div>
-        <div class="notes-box">
-            {notes.replace('\n', '<br>') if notes.strip() else 'לא נרשמו הערות נוספות.'}
-        </div>
-
-        <!-- גלריית תמונות -->
-        {photos_html}
-
-        <!-- חתימה -->
-        <div class="signature-container">
-            <table class="signature-table">
-                <tr>
-                    <td style="width: 50%;"><strong>שם המפקח:</strong> {inspector} {f'| מס\' רישיון: {license_no}' if license_no else ''}</td>
-                    <td style="width: 50%; text-align: left;"><strong>תאריך:</strong> {date_str}</td>
-                </tr>
-                <tr>
-                    <td colspan="2" style="padding-top: 15px;"><strong>חתימה:</strong> _______________________</td>
-                </tr>
-            </table>
-        </div>
-
-    </body>
-    </html>
-    """
-    
-    # המרת HTML ל-PDF באמצעות WeasyPrint
-    pdf_bytes = HTML(string=html_content).write_pdf()
-    return pdf_bytes
+    # בניית ה-PDF
+    doc.build(story, canvasmaker=NumberedCanvas)
+    buffer.seek(0)
+    return buffer.getvalue()
 
 
 # --- ממשק המשתמש (Streamlit UI) ---
@@ -332,9 +295,9 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", type="primary", use_container_
             {"title_he": "נספחים / תמונות שונות", "files": misc_files}
         ]
         
-        with st.spinner("מפיק דו\"ח מפקח בעברית מושלמת..."):
+        with st.spinner("מפיק דו\"ח מפקח מקצועי..."):
             try:
-                pdf_bytes = generate_pdf_html(
+                pdf_bytes = generate_pdf(
                     site_title=site_name,
                     junction_name=junction_name,
                     inspector=inspector_name,
