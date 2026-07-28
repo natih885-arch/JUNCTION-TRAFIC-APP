@@ -155,7 +155,7 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
     pdf.cell(120, 6, "Signature: _______________________", ln=False)
     pdf.cell(70, 6, f"Date: {clean_text(date_str)}", ln=True)
     
-    return pdf.output(dest='S').encode('latin1')
+    return bytes(pdf.output())
 
 
 # --- ממשק המשתמש (Streamlit UI) ---
