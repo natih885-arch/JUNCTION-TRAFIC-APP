@@ -1,4 +1,3 @@
 streamlit
-geopy
+fpdf2
 pillow
-pandas
