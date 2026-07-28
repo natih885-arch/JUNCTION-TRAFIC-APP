@@ -1,21 +1,30 @@
 import io
 import os
+import smtplib
 import urllib.request
-import streamlit as st
-from PIL import Image
+from email.mime.application import MIMEApplication
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 import arabic_reshaper
+import streamlit as st
 from bidi.algorithm import get_display
-
+from PIL import Image
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
-from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfgen import canvas
 from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, KeepTogether
+    Image as RLImage,
+    KeepTogether,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
 )
 
 # הגדרת תצורת עמוד ב-Streamlit
@@ -23,6 +32,8 @@ st.set_page_config(page_title="דו\"ח מפקח הסדר תנועה - ד.ד מ�
 
 # הורדת פונט עברי אמין (Rubik) מ-Google Fonts
 FONT_PATH = "Rubik-Regular.ttf"
+FONT_NAME = 'Helvetica'
+
 if not os.path.exists(FONT_PATH):
     font_url = "https://github.com/google/fonts/raw/main/ofl/rubik/Rubik%5Bwght%5D.ttf"
     try:
@@ -30,12 +41,12 @@ if not os.path.exists(FONT_PATH):
     except Exception:
         pass
 
-# רישום הפונט ב-ReportLab
 if os.path.exists(FONT_PATH):
-    pdfmetrics.registerFont(TTFont('HebrewFont', FONT_PATH))
-    FONT_NAME = 'HebrewFont'
-else:
-    FONT_NAME = 'Helvetica'
+    try:
+        pdfmetrics.registerFont(TTFont('HebrewFont', FONT_PATH))
+        FONT_NAME = 'HebrewFont'
+    except Exception:
+        FONT_NAME = 'Helvetica'
 
 # פונקציה לעיבוד טקסט בעברית (הפיכת כיוון וחיבור אותיות)
 def heb(text):
@@ -67,7 +78,8 @@ class NumberedCanvas(canvas.Canvas):
         self.saveState()
         self.setFont(FONT_NAME, 8)
         self.setFillColor(colors.HexColor("#666666"))
-        footer_text = heb(f"כל הזכויות שמורות לנתנאל עוז הררי © | ד.ד מהנדסים בע''מ | עמוד {self._pageNumber} מתוך {page_count}")
+        # 1. הוספת מספר הטלפון בכותרת התחתית ב-PDF
+        footer_text = heb(f"כל הזכויות שמורות לנתנאל עוז הררי © | נייד: 054-5520445 | ד.ד מהנדסים בע''מ | עמוד {self._pageNumber} מתוך {page_count}")
         self.drawCentredString(A4[0] / 2.0, 1 * cm, footer_text)
         self.restoreState()
 
@@ -158,9 +170,10 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
     story.append(notes_table)
     story.append(Spacer(1, 0.5 * cm))
 
-    # 5. תמונות
+    # 5. תמונות עם תיאורים דינמיים
     for section in photo_sections:
         files = section.get("files")
+        captions = section.get("captions", [])
         if not files:
             continue
 
@@ -184,14 +197,17 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
                 img_temp.seek(0)
 
                 rl_img = RLImage(img_temp, width=8.2 * cm, height=5.5 * cm)
-                cap = Paragraph(heb(f"תמונה #{i+1}"), style_caption)
+                
+                # 2. בדיקה אם הוזן תיאור אישי לתמונה
+                custom_cap = captions[i].strip() if i < len(captions) and captions[i].strip() else f"תמונה #{i+1}"
+                cap = Paragraph(heb(custom_cap), style_caption)
                 
                 cell_content = [rl_img, Spacer(1, 2), cap]
                 photo_cells.append(cell_content)
             except Exception:
                 continue
 
-        # סידור תמונות בזוגות (גריד של 2 בעמודה)
+        # סידור תמונות בזוגות
         grid_rows = []
         for i in range(0, len(photo_cells), 2):
             if i + 1 < len(photo_cells):
@@ -231,6 +247,28 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
     return buffer.getvalue()
 
 
+# 3. פונקציה לשליחת המייל עם ה-PDF המצורף
+def send_email(sender_email, sender_password, recipient_email, subject, body_text, pdf_data, filename):
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = recipient_email
+    msg['Subject'] = subject
+
+    msg.attach(MIMEText(body_text, 'plain', 'utf-8'))
+
+    # קובץ ה-PDF המצורף
+    part = MIMEApplication(pdf_data, Name=filename)
+    part['Content-Disposition'] = f'attachment; filename="{filename}"'
+    msg.attach(part)
+
+    # התחברות לשרת SMTP של Gmail
+    server = smtplib.SMTP('smtp.gmail.com', 587)
+    server.starttls()
+    server.login(sender_email, sender_password)
+    server.send_message(msg)
+    server.quit()
+
+
 # --- ממשק המשתמש (Streamlit UI) ---
 st.title("🚦 ד.ד מהנדסים בע''מ")
 st.subheader("מערכת הפקת דו\"ח מפקח הסדר תנועה")
@@ -264,36 +302,47 @@ notes = st.text_area("הערות מפקח, מפגעים ודגשים", placehold
 
 st.divider()
 
-st.subheader("📸 העלאת תמונות")
+st.subheader("📸 העלאת תמונות ותיאורים")
+
+def render_upload_section(label, key_prefix):
+    files = st.file_uploader(label, type=["jpg", "jpeg", "png"], accept_multiple_files=True, key=key_prefix)
+    captions = []
+    if files:
+        with st.expander(f"✏️ תיאורים לתמונות: {label}", expanded=False):
+            for i, f in enumerate(files):
+                cap = st.text_input(f"תיאור לתמונה #{i+1} ({f.name})", key=f"{key_prefix}_cap_{i}")
+                captions.append(cap)
+    return files, captions
 
 col_a, col_b = st.columns(2)
 
 with col_a:
-    before_files = st.file_uploader("תמונות - לפני הסדר", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key="before")
-    mechanism_files = st.file_uploader("תמונות - החלפת מנגנון", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key="mechanism")
-    cameras_files = st.file_uploader("תמונות - התקנת מצלמות", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key="cameras")
+    before_files, before_caps = render_upload_section("תמונות - לפני הסדר", "before")
+    mechanism_files, mechanism_caps = render_upload_section("תמונות - החלפת מנגנון", "mechanism")
+    cameras_files, cameras_caps = render_upload_section("תמונות - התקנת מצלמות", "cameras")
 
 with col_b:
-    after_files = st.file_uploader("תמונות - אחרי הסדר", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key="after")
-    detectors_files = st.file_uploader("תמונות - חריצת גלאים", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key="detectors")
-    plan_files = st.file_uploader("צילום תוכנית / שרטוט", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key="plan")
+    after_files, after_caps = render_upload_section("תמונות - אחרי הסדר", "after")
+    detectors_files, detectors_caps = render_upload_section("תמונות - חריצת גלאים", "detectors")
+    plan_files, plan_caps = render_upload_section("צילום תוכנית / שרטוט", "plan")
 
-misc_files = st.file_uploader("תמונות - שונות / נספחים", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key="misc")
+misc_files, misc_caps = render_upload_section("תמונות - שונות / נספחים", "misc")
 
 st.divider()
 
+# יצירת ה-PDF ושמירתו ב-Session State כדי שיהיה זמין גם להורדה וגם לשליחה
 if st.button("🚀 הפק דו\"ח מפקח PDF", type="primary", use_container_width=True):
     if not site_name or not junction_name or not inspector_name:
         st.error("⚠️ אנא מלא את שם האתר, שם הצומת ושם המפקח.")
     else:
         photo_sections = [
-            {"title_he": "מצב קיים בשטח (לפני העבודות)", "files": before_files},
-            {"title_he": "הסדר תנועה סופי (אחרי העבודות)", "files": after_files},
-            {"title_he": "החלפת מנגנון / בקר תנועה", "files": mechanism_files},
-            {"title_he": "חריצת גלאים", "files": detectors_files},
-            {"title_he": "התקנת מצלמות תנועה", "files": cameras_files},
-            {"title_he": "תוכנית הסדר תנועה מאושרת", "files": plan_files},
-            {"title_he": "נספחים / תמונות שונות", "files": misc_files}
+            {"title_he": "מצב קיים בשטח (לפני העבודות)", "files": before_files, "captions": before_caps},
+            {"title_he": "הסדר תנועה סופי (אחרי העבודות)", "files": after_files, "captions": after_caps},
+            {"title_he": "החלפת מנגנון / בקר תנועה", "files": mechanism_files, "captions": mechanism_caps},
+            {"title_he": "חריצת גלאים", "files": detectors_files, "captions": detectors_caps},
+            {"title_he": "התקנת מצלמות תנועה", "files": cameras_files, "captions": cameras_caps},
+            {"title_he": "תוכנית הסדר תנועה מאושרת", "files": plan_files, "captions": plan_caps},
+            {"title_he": "נספחים / תמונות שונות", "files": misc_files, "captions": misc_caps}
         ]
         
         with st.spinner("מפיק דו\"ח מפקח מקצועי..."):
@@ -309,16 +358,51 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", type="primary", use_container_
                     photo_sections=photo_sections
                 )
                 
+                st.session_state['pdf_bytes'] = pdf_bytes
+                st.session_state['pdf_filename'] = f"DD_Engineers_Report_{date_val}.pdf"
                 st.success("✅ הדו\"ח הופק בהצלחה!")
-                
-                st.download_button(
-                    label="⬇️ הורד דו\"ח PDF למכשיר",
-                    data=pdf_bytes,
-                    file_name=f"DD_Engineers_Report_{date_val}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True
-                )
             except Exception as e:
                 st.error(f"שגיאה בהפקת ה-PDF: {e}")
 
-st.caption("© כל הזכויות שמורות לנתנאל עוז הררי (Netanel Oz Harary). אין לעשות שימוש או להפיץ ללא אישור בכתב.")
+# אפשרויות הורדה ושליחה במייל מופיעות לאחר שהדו"ח נוצר
+if 'pdf_bytes' in st.session_state:
+    st.download_button(
+        label="⬇️ הורד דו\"ח PDF למכשיר",
+        data=st.session_state['pdf_bytes'],
+        file_name=st.session_state['pdf_filename'],
+        mime="application/pdf",
+        use_container_width=True
+    )
+    
+    st.divider()
+    
+    # 3. ממשק שליחת מייל
+    st.subheader("📧 שליחת הדו\"ח במייל")
+    
+    recipient_email = st.text_input("הכנס כתובת מייל למשלוח הדו\"ח", placeholder="example@domain.com")
+    
+    with st.expander("⚙️ הגדרות שרת מייל (Gmail)", expanded=False):
+        sender_email = st.text_input("כתובת Gmail השולחת", placeholder="your_email@gmail.com")
+        sender_password = st.text_input("סיסמת אפליקציה (App Password)", type="password")
+        st.caption("מילוי חד-פעמי או דרך Streamlit Secrets. מומלץ להפיק App Password מתוך חשבון ה-Google.")
+
+    if st.button("✉️ שלח דו\"ח למייל", use_container_width=True):
+        if not recipient_email or not sender_email or not sender_password:
+            st.warning("⚠️ אנא מלא את כתובת המייל של המקבל ואת פרטי התחברות ה-Gmail.")
+        else:
+            with st.spinner("שולח את המייל..."):
+                try:
+                    send_email(
+                        sender_email=sender_email,
+                        sender_password=sender_password,
+                        recipient_email=recipient_email,
+                        subject=f"דו\"ח פיקוח - {site_name} - {date_val}",
+                        body_text=f"שלום,\n\ מצורף דו\"ח פיקוח הסדר תנועה עבור {site_name}.\n\nבברכה,\n{inspector_name}\nד.ד מהנדסים בע''מ",
+                        pdf_data=st.session_state['pdf_bytes'],
+                        filename=st.session_state['pdf_filename']
+                    )
+                    st.success(f"📬 הדו\"ח נשלח בהצלחה ל- {recipient_email}")
+                except Exception as e:
+                    st.error(f"שגיאה בשליחת המייל: {e}")
+
+st.caption("© כל הזכויות שמורות לנתנאל עוז הררי (Netanel Oz Harary) | נייד: 054-5520445. אין לעשות שימוש או להפיץ ללא אישור בכתב.")
