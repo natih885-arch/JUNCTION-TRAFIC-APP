@@ -1,267 +1,248 @@
 import os
-import io
-import zipfile
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email import encoders
-import pandas as pd
 import streamlit as st
-from geopy.distance import geodesic
+from fpdf import FPDF
 from PIL import Image
-from PIL.ExifTags import TAGS, GPSTAGS
 
-# --- הגדרות עמוד ---
-st.set_page_config(
-    page_title="מערכת דיווח וסיווג צמתים - ענן ומייל",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# הגדרת תצורת עמוד ב-Streamlit
+st.set_page_config(page_title="דו\"ח מפקח הסדר תנועה - ד.ד מהנדסים בע''מ", page_icon="🚦", layout="centered")
 
-st.markdown("""
-    <style>
-    body, div, p, span, h1, h2, h3, h4, h5, h6, label {
-        direction: RTL;
-        text-align: right;
-    }
-    .stButton>button {
-        width: 100%;
-        background-color: #0066cc;
-        color: white;
-        font-weight: bold;
-    }
-    </style>
-""", unsafe_allow_html=True)
+# ==============================================================================
+# מתג אבטחה ואישור הפעלה (Kill-Switch)
+APP_ACTIVE = True
+# ==============================================================================
 
-# --- ניהול משתמשים בדיסק ---
-if 'logged_in' not in st.session_state:
-    st.session_state['logged_in'] = False
-if 'user_email' not in st.session_state:
-    st.session_state['user_email'] = ""
-if 'user_name' not in st.session_state:
-    st.session_state['user_name'] = ""
-if 'users_db' not in st.session_state:
-    st.session_state['users_db'] = {}
+if not APP_ACTIVE:
+    st.error("⛔ המערכת אינה פעילה כעת. אנא פנה למפתח המערכת לקבלת גישה.")
+    st.stop()
 
-# --- רשימת צמתים וקואורדינטות ---
-JUNCTIONS = {
-    "צומת_402_רעננה": (32.1842, 34.8711),
-    "צומת_הרצליה_מרכז": (32.1663, 34.8433),
-    "צומת_מחלף_הסירות": (32.1642, 34.8115),
-    "צומת_ראשון_לציון_מרכז": (31.9652, 34.8031)
-}
-MAX_DISTANCE_METERS = 100
+# --- מחלקת יצירת PDF הנדסי ומעוצב ---
+class TrafficInspectionPDF(FPDF):
+    def header(self):
+        # פס כותרת כחול כהה
+        self.set_fill_color(24, 43, 73)
+        self.rect(0, 0, 210, 28, 'F')
+        
+        # שם החברה בראש הדו"ח
+        self.set_font("Helvetica", "B", 14)
+        self.set_text_color(255, 255, 255)
+        self.cell(0, 7, "D.D. ENGINEERS LTD | D.D. ENGINEERS LTD", ln=True, align="C")
+        
+        # כותרת הדו"ח
+        self.set_font("Helvetica", "B", 12)
+        self.cell(0, 6, "TRAFFIC CONTROL INSPECTION REPORT", ln=True, align="C")
+        
+        self.set_font("Helvetica", "I", 8)
+        self.cell(0, 5, "Official Field Traffic Management Record", ln=True, align="C")
+        self.ln(8)
 
-# --- פונקציות GPS ---
-def convert_to_degrees(value):
-    d = float(value[0])
-    m = float(value[1])
-    s = float(value[2])
-    return d + (m / 60.0) + (s / 3600.0)
+    def footer(self):
+        self.set_y(-15)
+        self.set_font("Helvetica", "I", 7)
+        self.set_text_color(128, 128, 128)
+        # זכויות יוצרים בתחתית כל עמוד ב-PDF
+        copyright_text = "Page %d | © All Rights Reserved to Netanel Oz Harary. Unauthorized use or distribution is strictly prohibited." % self.page_no()
+        self.cell(0, 10, copyright_text, align="C")
 
-def get_gps_coordinates(image):
-    try:
-        exif_data = image._getexif()
-        if not exif_data:
-            return None
-        gps_info = {}
-        for tag_id, value in exif_data.items():
-            tag = TAGS.get(tag_id, tag_id)
-            if tag == "GPSInfo":
-                for g_tag in value:
-                    g_name = GPSTAGS.get(g_tag, g_tag)
-                    gps_info[g_name] = value[g_tag]
-        if 'GPSLatitude' in gps_info and 'GPSLongitude' in gps_info:
-            lat = convert_to_degrees(gps_info['GPSLatitude'])
-            if gps_info.get('GPSLatitudeRef') != 'N':
-                lat = -lat
-            lon = convert_to_degrees(gps_info['GPSLongitude'])
-            if gps_info.get('GPSLongitudeRef') != 'E':
-                lon = -lon
-            return lat, lon
-    except Exception:
-        pass
-    return None
-
-def find_matching_junction(coords):
-    if not coords:
-        return "תמונות_ללא_מיקום_GPS"
-    for junction_name, junction_coords in JUNCTIONS.items():
-        dist = geodesic(coords, junction_coords).meters
-        if dist <= MAX_DISTANCE_METERS:
-            return junction_name
-    return "צומת_לא_מוכר_לפי_GPS"
-
-# --- פונקציית שליחת מייל מרוכז ---
-def send_email_report(sender_email, sender_password, target_email, subject, body_text, files_dict):
-    try:
-        msg = MIMEMultipart()
-        msg['From'] = sender_email
-        msg['To'] = target_email
-        msg['Subject'] = subject
-        msg.attach(MIMEText(body_text, 'plain', 'utf-8'))
-
-        for filename, file_bytes in files_dict.items():
-            part = MIMEBase('application', 'octet-stream')
-            part.set_payload(file_bytes)
-            encoders.encode_base64(part)
-            part.add_header('Content-Disposition', f'attachment; filename="{filename}"')
-            msg.attach(part)
-
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(sender_email, sender_password)
-        server.sendmail(sender_email, target_email, msg.as_string())
-        server.quit()
-        return True, "הדוח המרוכז נשלח בהצלחה למייל!"
-    except Exception as e:
-        return False, f"שגיאה בשליחת המייל: {str(e)}"
-
-# ==================== תפריט התחברות / הרשמה (Sidebar) ====================
-st.sidebar.title("👤 אזור אישי ואימות")
-
-if not st.session_state['logged_in']:
-    auth_mode = st.sidebar.radio("בחר פעולה:", ["התחברות", "הרשמה"])
+def generate_pdf(site_title, junction_name, inspector, license_no, date_str, work_type, notes, photo_sections):
+    pdf = TrafficInspectionPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
     
-    if auth_mode == "הרשמה":
-        st.sidebar.subheader("הרשמת מפקח חדש")
-        reg_name = st.sidebar.text_input("שם מלא:")
-        reg_email = st.sidebar.text_input("כתובת אימייל:")
-        reg_pass = st.sidebar.text_input("סיסמה:", type="password")
+    pdf.set_text_color(40, 40, 40)
+    
+    # 1. כותרת הפרויקט
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.cell(0, 8, f"Project Site: {site_title}", ln=True)
+    pdf.set_draw_color(24, 43, 73)
+    pdf.set_line_width(0.8)
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.ln(5)
+    
+    # 2. טבלת נתונים מרכזית
+    pdf.set_fill_color(240, 244, 248)
+    pdf.set_font("Helvetica", "B", 10)
+    
+    col_w = 95
+    pdf.cell(col_w, 7, f" Junction / Location: {junction_name}", border=1, fill=True)
+    
+    # הצגת רישיון אם הוקלד
+    inspector_info = f" Inspector: {inspector}"
+    if license_no.strip():
+        inspector_info += f" (Lic. #{license_no})"
+    pdf.cell(col_w, 7, inspector_info, border=1, fill=True, ln=True)
+    
+    pdf.cell(col_w, 7, f" Date: {date_str}", border=1, fill=True)
+    pdf.cell(col_w, 7, f" Activity Type: {work_type}", border=1, fill=True, ln=True)
+    
+    pdf.ln(4)
+    
+    # 3. הערות מפקח
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 6, "Traffic Field Observations & Directives:", ln=True)
+    pdf.set_font("Helvetica", "", 10)
+    
+    notes_text = notes if notes.strip() else "No additional engineering notes recorded."
+    pdf.multi_cell(190, 6, notes_text, border=1)
+    pdf.ln(8)
+    
+    # פונקציית עזר לגלריית תמונות - מוסיפה קטגוריות רק אם הועלו תמונות בפועל
+    def add_photos(title_en, files, prefix):
+        if not files:
+            return  # מדלג על קטגוריה שאין בה תמונות
+            
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.set_fill_color(220, 228, 238)
+        pdf.cell(0, 7, f" {title_en}", ln=True, fill=True)
+        pdf.ln(4)
         
-        if st.sidebar.button("ביצוע הרשמה"):
-            if reg_email and reg_pass and reg_name:
-                st.session_state['users_db'][reg_email] = {"name": reg_name, "pass": reg_pass}
-                st.sidebar.success("ההרשמה בוצעה בהצלחה! כעת תוכל להתחבר.")
+        col = 0
+        y_start = pdf.get_y()
+        
+        for i, f in enumerate(files):
+            if pdf.get_y() > 230:
+                pdf.add_page()
+                y_start = pdf.get_y()
+                col = 0
+                
+            img = Image.open(f)
+            temp = f"temp_{prefix}_{i}.jpg"
+            img.convert("RGB").save(temp)
+            
+            x_pos = 10 if col == 0 else 105
+            curr_y = pdf.get_y() if col == 0 else y_start
+            
+            pdf.image(temp, x=x_pos, y=curr_y, w=85, h=60)
+            pdf.rect(x_pos, curr_y, 85, 60)
+            
+            pdf.set_xy(x_pos, curr_y + 61)
+            pdf.set_font("Helvetica", "I", 8)
+            pdf.cell(85, 4, f"Photo #{i+1} - {prefix.upper()}", align="C")
+            
+            if col == 1:
+                pdf.set_y(curr_y + 68)
+                col = 0
             else:
-                st.sidebar.error("אנא מלא את כל השדות.")
+                y_start = curr_y
+                col = 1
+                
+            if os.path.exists(temp):
+                os.remove(temp)
+                
+        if col == 1:
+            pdf.set_y(y_start + 68)
+        pdf.ln(4)
 
-    elif auth_mode == "התחברות":
-        st.sidebar.subheader("התחברות למערכת")
-        login_email = st.sidebar.text_input("אימייל:")
-        login_pass = st.sidebar.text_input("סיסמה:", type="password")
+    # 4. הרצת קטגוריות התמונות (רק הפעילות יופיעו)
+    for section in photo_sections:
+        add_photos(section["title_en"], section["files"], section["prefix"])
+    
+    # 5. חתימת מפקח רשמית בתחתית
+    if pdf.get_y() > 230:
+        pdf.add_page()
         
-        if st.sidebar.button("התחבר"):
-            user = st.session_state['users_db'].get(login_email)
-            if user and user['pass'] == login_pass:
-                st.session_state['logged_in'] = True
-                st.session_state['user_email'] = login_email
-                st.session_state['user_name'] = user['name']
-                st.rerun()
-            else:
-                st.sidebar.error("פרטי התחברות שגויים או שאינך רשום.")
-else:
-    st.sidebar.success(f"מחובר כ: **{st.session_state['user_name']}**")
-    st.sidebar.write(f"אימייל: `{st.session_state['user_email']}`")
-    if st.sidebar.button("התנתק"):
-        st.session_state['logged_in'] = False
-        st.session_state['user_email'] = ""
-        st.session_state['user_name'] = ""
-        st.rerun()
-
-# ==================== המסך המרכזי ====================
-st.title("🚦 מערכת מרוכזת לדיווח צמתים וסיווג תמונות")
-
-if not st.session_state['logged_in']:
-    st.warning("⚠️ יש להתחבר או להירשם בתפריט הצדדי כדי להתחיל לעבוד במערכת.")
-else:
-    col_right, col_left = st.columns([1, 1])
-
-    with col_right:
-        st.subheader("📁 העלאת תמונות מהשטח")
+    pdf.ln(10)
+    pdf.set_font("Helvetica", "B", 10)
+    
+    sign_text = f"Inspector: {inspector}"
+    if license_no.strip():
+        sign_text += f" | License No: {license_no}"
         
-        files_before = st.file_uploader(
-            "📷 תמונות 'לפני הסדר':", 
-            type=['jpg', 'jpeg', 'png'], 
-            accept_multiple_files=True,
-            key="before_files"
-        )
-        
-        files_after = st.file_uploader(
-            "📸 תמונות 'אחרי הסדר':", 
-            type=['jpg', 'jpeg', 'png'], 
-            accept_multiple_files=True,
-            key="after_files"
-        )
+    pdf.cell(0, 6, sign_text, ln=True)
+    pdf.cell(120, 6, "Signature: _______________________", ln=False)
+    pdf.cell(70, 6, f"Date: {date_str}", ln=True)
+    
+    return pdf.output(dest='S').encode('latin1')
 
-    with col_left:
-        st.subheader("📝 דוח מילולי מרוכז")
-        change_report = st.text_area("דוח שינויים שבוצעו:", placeholder="פרט כאן שינויים...", height=80)
-        defects_report = st.text_area("דוח ליקויים שנתגלו:", placeholder="פרט כאן ליקויים...", height=80)
-        general_notes = st.text_area("הערות כלליות:", placeholder="הערות נוספות...", height=80)
 
-    if files_before or files_after:
-        st.divider()
-        st.subheader("📸 עיבוד ותצוגה מקדימה")
-        
-        files_to_email = {}
-        summary_lines = [
-            f"=== דוח מרכזי מאת המפקח: {st.session_state['user_name']} ({st.session_state['user_email']}) ===",
-            "\n--- פירוט דוחות בכתב ---",
-            f"דוח שינויים:\n{change_report if change_report else 'אין'}",
-            f"\nדוח ליקויים:\n{defects_report if defects_report else 'אין'}",
-            f"\nהערות כלליות:\n{general_notes if general_notes else 'אין'}",
-            "\n--- פירוט תמונות מועלות ---"
+# --- ממשק המשתמש (Streamlit UI) ---
+st.title("🚦 ד.ד מהנדסים בע''מ")
+st.subheader("מערכת הפקת דו\"ח מפקח הסדר תנועה")
+st.write("מלא את הפרטים והעלה תמונות להפקת דו\"ח PDF מקצועי מהשטח.")
+
+st.divider()
+
+st.subheader("📋 פרטי האתר והמפקח")
+
+col1, col2 = st.columns(2)
+with col1:
+    site_name = st.text_input("שם האתר / פרויקט", "פרויקט תשתיות מרכז")
+    junction_name = st.text_input("שם הצומת / מיקום מדויק", "צומת הרצל - ז'בוטינסקי")
+    inspector_name = st.text_input("שם המפקח / ממלא הדו\"ח", "")
+    license_no = st.text_input("מספר רישיון / מ.פ (אופציונלי)", "")
+
+with col2:
+    date_val = st.date_input("תאריך הבדיקה")
+    work_type = st.selectbox("סוג הפעילות / העבודה", [
+        "הסדר תנועה זמני (עבודות)",
+        "החלפת מנגנון",
+        "חריצת גלאים",
+        "התקנת מצלמות",
+        "אישור הסטת נתיבים",
+        "בדיקת שילוט ותמרור",
+        "תחזוקת רמזורים",
+        "סיור פיקוח תקופתי",
+        "אחר"
+    ])
+
+notes = st.text_area("הערות מפקח, מפגעים ודגשים", placeholder="רשום כאן פירוט לגבי התמרור, הנתיבים, ציוד שנבדק, בטיחות...")
+
+st.divider()
+
+# העלאת תמונות לפי קטגוריות
+st.subheader("📸 העלאת תמונות (העלה רק לקטגוריות הרלוונטיות)")
+
+col_a, col_b = st.columns(2)
+
+with col_a:
+    before_files = st.file_uploader("תמונות - לפני הסדר", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key="before")
+    mechanism_files = st.file_uploader("תמונות - החלפת מנגנון", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key="mechanism")
+    cameras_files = st.file_uploader("תמונות - התקנת מצלמות", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key="cameras")
+
+with col_b:
+    after_files = st.file_uploader("תמונות - אחרי הסדר", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key="after")
+    detectors_files = st.file_uploader("תמונות - חריצת גלאים", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key="detectors")
+    plan_files = st.file_uploader("צילום תוכנית / שרטוט", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key="plan")
+
+misc_files = st.file_uploader("תמונות - שונות / נספחים", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key="misc")
+
+st.divider()
+
+if st.button("🚀 הפק דו\"ח מפקח PDF", type="primary", use_container_width=True):
+    if not site_name or not junction_name or not inspector_name:
+        st.error("⚠️ אנא מלא את שם האתר, שם הצומת ושם המפקח.")
+    else:
+        # אריזת הקטגוריות שנבחרו
+        photo_sections = [
+            {"title_en": "BEFORE WORKS (Initial Field Condition)", "files": before_files, "prefix": "before"},
+            {"title_en": "AFTER WORKS (Final Traffic Arrangement)", "files": after_files, "prefix": "after"},
+            {"title_en": "CONTROLLER REPLACEMENT (Mechanism)", "files": mechanism_files, "prefix": "mechanism"},
+            {"title_en": "DETECTOR LOOP SLITTING", "files": detectors_files, "prefix": "detectors"},
+            {"title_en": "TRAFFIC CAMERA INSTALLATION", "files": cameras_files, "prefix": "cameras"},
+            {"title_en": "APPROVED TRAFFIC PLAN / DRAWING", "files": plan_files, "prefix": "plan"},
+            {"title_en": "MISCELLANEOUS / ATTACHMENTS", "files": misc_files, "prefix": "misc"}
         ]
-
-        # פונקציית עזר לעיבוד רשימת תמונות
-        def process_files(file_list, category_label):
-            for file in file_list:
-                img = Image.open(file)
-                coords = get_gps_coordinates(img)
-                junction_folder = find_matching_junction(coords)
-                
-                c1, c2 = st.columns([1, 3])
-                with c1:
-                    st.image(img, width=150)
-                with c2:
-                    st.write(f"**קובץ:** {file.name} | **צומת:** `{junction_folder}` | **סיווג:** {category_label}")
-                
-                file_bytes = file.getvalue()
-                safe_filename = f"{junction_folder}_{category_label}_{file.name}"
-                files_to_email[safe_filename] = file_bytes
-                
-                summary_lines.append(f"קובץ: {file.name} | צומת: {junction_folder} | סיווג: {category_label} | GPS: {coords}")
-
-        if files_before:
-            st.markdown("#### 🔹 תמונות לפני הסדר:")
-            process_files(files_before, "לפני_הסדר")
-
-        if files_after:
-            st.markdown("#### 🔹 תמונות אחרי הסדר:")
-            process_files(files_after, "אחרי_הסדר")
-
-        full_report_text = "\n".join(summary_lines)
-
-        st.divider()
-        st.subheader("📧 שליחת דוח מרוכז במייל מרכזי")
         
-        st.info("הזן פרטי שרת דואר לשליחת הדוח המאוחד (כולל כל התמונות והמלל) למשרד:")
+        with st.spinner("מפיק דו\"ח מפקח מעוצב..."):
+            pdf_bytes = generate_pdf(
+                site_title=site_name,
+                junction_name=junction_name,
+                inspector=inspector_name,
+                license_no=license_no,
+                date_str=str(date_val),
+                work_type=work_type,
+                notes=notes,
+                photo_sections=photo_sections
+            )
         
-        c_mail1, c_mail2 = st.columns(2)
-        with c_mail1:
-            dest_email = st.text_input("מייל יעד (למי לשלוח במשרד):", value="office@company.com")
-            sender_email = st.text_input("מייל שולח (Gmail):", value=st.session_state['user_email'])
-        with c_mail2:
-            sender_pass = st.text_input("סיסמת אפליקציה לשולח (App Password):", type="password")
+        st.success("✅ הדו\"ח הופק בהצלחה!")
+        
+        st.download_button(
+            label="⬇️ הורד דו\"ח PDF למכשיר",
+            data=pdf_bytes,
+            file_name=f"DD_Engineers_Report_{junction_name.replace(' ', '_')}_{date_val}.pdf",
+            mime="application/pdf",
+            use_container_width=True
+        )
 
-        if st.button("🚀 שגר דוח מרוכז אחד למייל"):
-            if not sender_email or not sender_pass or not dest_email:
-                st.error("אנא מלא את כל פרטי המייל לשליחה.")
-            else:
-                files_to_email["דוח_ריכוז_מלא.txt"] = full_report_text.encode('utf-8')
-                
-                with st.spinner("שולח דוח מרוכז ותמונות..."):
-                    success, msg = send_email_report(
-                        sender_email=sender_email,
-                        sender_password=sender_pass,
-                        target_email=dest_email,
-                        subject=f"דוח צמתים מרוכז - {st.session_state['user_name']}",
-                        body_text=full_report_text,
-                        files_dict=files_to_email
-                    )
-                if success:
-                    st.success(msg)
-                else:
-                    st.error(msg)
+# --- הצגת זכויות יוצרים בתחתית האפליקציה ---
+st.caption("© כל הזכויות שמורות לנתנאל עוז הררי (Netanel Oz Harary). אין לעשות שימוש או להפיץ ללא אישור בכתב.")
