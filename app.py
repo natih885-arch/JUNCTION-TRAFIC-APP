@@ -1,19 +1,11 @@
 import io
 import os
-import smtplib
 import urllib.request
-from datetime import datetime
-from email import encoders
-from email.mime.base import MIMEBase
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-
 import streamlit as st
 from PIL import Image
 
 import arabic_reshaper
 from bidi.algorithm import get_display
-from streamlit_drawable_canvas import st_canvas
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -26,33 +18,8 @@ from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, KeepTogether
 )
 
-# ==============================================================
 # הגדרת תצורת עמוד ב-Streamlit
-# ==============================================================
 st.set_page_config(page_title="דו\"ח מפקח הסדר תנועה - ד.ד מהנדסים בע''מ", page_icon="🚦", layout="centered")
-
-# ==============================================================
-# הגדרות שליחת מייל - פעם אחת, לא מוצג באפליקציה עצמה
-# ==============================================================
-# האפשרות המומלצת: ליצור קובץ .streamlit/secrets.toml (לא עולה לגיט!) עם:
-#
-# [email]
-# sender = "your_email@gmail.com"
-# password = "your_app_password"
-# smtp_server = "smtp.gmail.com"
-# smtp_port = 587
-#
-# אם אין קובץ secrets - המערכת תשתמש בערכים הקבועים כאן במקום (למלא פעם אחת).
-try:
-    SENDER_EMAIL = st.secrets["email"]["sender"]
-    SENDER_PASSWORD = st.secrets["email"]["password"]
-    SMTP_SERVER = st.secrets["email"].get("smtp_server", "smtp.gmail.com")
-    SMTP_PORT = int(st.secrets["email"].get("smtp_port", 587))
-except Exception:
-    SENDER_EMAIL = "CHANGE_ME@gmail.com"
-    SENDER_PASSWORD = "CHANGE_ME_APP_PASSWORD"
-    SMTP_SERVER = "smtp.gmail.com"
-    SMTP_PORT = 587
 
 # הורדת פונט עברי אמין (Rubik) מ-Google Fonts
 FONT_PATH = "Rubik-Regular.ttf"
@@ -67,11 +34,8 @@ if not os.path.exists(FONT_PATH):
 if os.path.exists(FONT_PATH):
     pdfmetrics.registerFont(TTFont('HebrewFont', FONT_PATH))
     FONT_NAME = 'HebrewFont'
-    FONT_LOADED = True
 else:
     FONT_NAME = 'Helvetica'
-    FONT_LOADED = False
-
 
 # פונקציה לעיבוד טקסט בעברית (הפיכת כיוון וחיבור אותיות)
 def heb(text):
@@ -80,7 +44,6 @@ def heb(text):
     reshaped_text = arabic_reshaper.reshape(str(text))
     bidi_text = get_display(reshaped_text)
     return bidi_text
-
 
 # מחלקה למספור עמודים וכותרת תחתית
 class NumberedCanvas(canvas.Canvas):
@@ -108,9 +71,7 @@ class NumberedCanvas(canvas.Canvas):
         self.drawCentredString(A4[0] / 2.0, 1 * cm, footer_text)
         self.restoreState()
 
-
-def generate_pdf(site_title, junction_name, inspector, license_no, date_str, work_type, notes,
-                  photo_sections, signature_bytes=None):
+def generate_pdf(site_title, junction_name, inspector, license_no, date_str, work_type, notes, photo_sections):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -122,7 +83,7 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
     )
 
     styles = getSampleStyleSheet()
-
+    
     # סגנונות מעוצבים
     style_header_title = ParagraphStyle('HeaderTitle', fontName=FONT_NAME, fontSize=15, leading=19, textColor=colors.white, alignment=1)
     style_header_sub = ParagraphStyle('HeaderSub', fontName=FONT_NAME, fontSize=12, leading=16, textColor=colors.white, alignment=1)
@@ -145,11 +106,11 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
     ]
     header_table = Table(header_data, colWidths=[18 * cm])
     header_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#182b49")),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#182b49")),
+        ('TOPPADDING', (0,0), (-1,-1), 6),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
     ]))
     story.append(header_table)
     story.append(Spacer(1, 0.4 * cm))
@@ -169,12 +130,12 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
     ]
     info_table = Table(info_data, colWidths=[9 * cm, 9 * cm])
     info_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#f1f5f9")),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('LEFTPADDING', (0, 0), (-1, -1), 8),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#f1f5f9")),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e1")),
+        ('TOPPADDING', (0,0), (-1,-1), 6),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ('LEFTPADDING', (0,0), (-1,-1), 8),
+        ('RIGHTPADDING', (0,0), (-1,-1), 8),
     ]))
     story.append(info_table)
     story.append(Spacer(1, 0.4 * cm))
@@ -182,17 +143,17 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
     # 4. הערות מפקח
     story.append(Paragraph(heb("הערות, ממצאים והנחיות מפקח:"), style_notes_title))
     story.append(Spacer(1, 0.1 * cm))
-
+    
     notes_text = notes.strip() if notes.strip() else "לא נרשמו הערות נוספות."
     notes_data = [[Paragraph(heb(notes_text), style_notes_content)]]
     notes_table = Table(notes_data, colWidths=[18 * cm])
     notes_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), colors.white),
-        ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('LEFTPADDING', (0, 0), (-1, -1), 8),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ('BACKGROUND', (0,0), (-1,-1), colors.white),
+        ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e1")),
+        ('TOPPADDING', (0,0), (-1,-1), 8),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+        ('LEFTPADDING', (0,0), (-1,-1), 8),
+        ('RIGHTPADDING', (0,0), (-1,-1), 8),
     ]))
     story.append(notes_table)
     story.append(Spacer(1, 0.5 * cm))
@@ -206,33 +167,25 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
         sec_title_data = [[Paragraph(heb(section['title_he']), style_sec_header)]]
         sec_title_table = Table(sec_title_data, colWidths=[18 * cm])
         sec_title_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#e2e8f0")),
-            ('LINELEFT', (0, 0), (0, -1), 3, colors.HexColor("#182b49")),
-            ('TOPPADDING', (0, 0), (-1, -1), 4),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#e2e8f0")),
+            ('LINELEFT', (0,0), (0,-1), 3, colors.HexColor("#182b49")),
+            ('TOPPADDING', (0,0), (-1,-1), 4),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+            ('RIGHTPADDING', (0,0), (-1,-1), 8),
         ]))
 
         photo_cells = []
         for i, f in enumerate(files):
             try:
                 img = Image.open(f)
-                # טיפול נכון בתמונות עם שקיפות (RGBA) - הרכבה על רקע לבן
-                if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
-                    img = img.convert("RGBA")
-                    bg = Image.new("RGB", img.size, (255, 255, 255))
-                    bg.paste(img, mask=img.split()[-1])
-                    img = bg
-                else:
-                    img = img.convert("RGB")
-
+                img = img.convert("RGB")
                 img_temp = io.BytesIO()
                 img.save(img_temp, format="JPEG", quality=80)
                 img_temp.seek(0)
 
                 rl_img = RLImage(img_temp, width=8.2 * cm, height=5.5 * cm)
-                cap = Paragraph(heb(f"תמונה #{i + 1}"), style_caption)
-
+                cap = Paragraph(heb(f"תמונה #{i+1}"), style_caption)
+                
                 cell_content = [rl_img, Spacer(1, 2), cap]
                 photo_cells.append(cell_content)
             except Exception:
@@ -242,43 +195,33 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
         grid_rows = []
         for i in range(0, len(photo_cells), 2):
             if i + 1 < len(photo_cells):
-                grid_rows.append([photo_cells[i + 1], photo_cells[i]])
+                grid_rows.append([photo_cells[i+1], photo_cells[i]])
             else:
                 grid_rows.append(["", photo_cells[i]])
 
         if grid_rows:
             grid_table = Table(grid_rows, colWidths=[9 * cm, 9 * cm])
             grid_table.setStyle(TableStyle([
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 8),
             ]))
             story.append(KeepTogether([sec_title_table, Spacer(1, 0.2 * cm), grid_table]))
             story.append(Spacer(1, 0.3 * cm))
 
-    # 6. חתימה (דיגיטלית אם קיימת, אחרת שורת חתימה ריקה)
+    # 6. חתימה
     sig_text = f"שם המפקח: {inspector}"
     if license_no.strip():
         sig_text += f" | מס' רישיון: {license_no}"
 
-    if signature_bytes:
-        sig_img = RLImage(io.BytesIO(signature_bytes), width=5 * cm, height=2 * cm)
-        signature_cell = [Paragraph(heb("חתימת מפקח:"), style_cell_label), sig_img]
-    else:
-        signature_cell = [Paragraph(heb("חתימה: _______________________"), style_cell_label)]
-
     sig_data = [
         [Paragraph(heb(f"תאריך: {date_str}"), style_cell_label), Paragraph(heb(sig_text), style_cell_label)],
-        ["", *signature_cell] if len(signature_cell) == 1 else ["", signature_cell[0]],
+        ["", Paragraph(heb("חתימה: _______________________"), style_cell_label)]
     ]
-    if signature_bytes:
-        sig_data.append(["", signature_cell[1]])
-
     sig_table = Table(sig_data, colWidths=[9 * cm, 9 * cm])
     sig_table.setStyle(TableStyle([
-        ('TOPPADDING', (0, 0), (-1, -1), 4),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-        ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
     ]))
     story.append(KeepTogether([Spacer(1, 0.5 * cm), sig_table]))
 
@@ -288,35 +231,9 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
     return buffer.getvalue()
 
 
-def send_email_with_attachment(sender_email, sender_password, smtp_server, smtp_port,
-                                recipient_email, subject, body, pdf_bytes, filename):
-    """שולח מייל עם קובץ ה-PDF מצורף באמצעות SMTP."""
-    msg = MIMEMultipart()
-    msg["From"] = sender_email
-    msg["To"] = recipient_email
-    msg["Subject"] = subject
-    msg.attach(MIMEText(body, "plain", "utf-8"))
-
-    part = MIMEBase("application", "octet-stream")
-    part.set_payload(pdf_bytes)
-    encoders.encode_base64(part)
-    part.add_header("Content-Disposition", f"attachment; filename={filename}")
-    msg.attach(part)
-
-    with smtplib.SMTP(smtp_server, smtp_port, timeout=20) as server:
-        server.starttls()
-        server.login(sender_email, sender_password)
-        server.sendmail(sender_email, recipient_email, msg.as_string())
-
-
-# ==============================================================
 # --- ממשק המשתמש (Streamlit UI) ---
-# ==============================================================
 st.title("🚦 ד.ד מהנדסים בע''מ")
 st.subheader("מערכת הפקת דו\"ח מפקח הסדר תנועה")
-
-if not FONT_LOADED:
-    st.warning("⚠️ לא הצלחנו לטעון את הפונט העברי (Rubik). ייתכן שהטקסט העברי ב-PDF לא יוצג כראוי. בדוק חיבור לאינטרנט ונסה לרענן.")
 
 st.divider()
 
@@ -365,63 +282,6 @@ misc_files = st.file_uploader("תמונות - שונות / נספחים", type=[
 
 st.divider()
 
-# ==============================================================
-# ✍️ חתימה דיגיטלית
-# ==============================================================
-st.subheader("✍️ חתימת מפקח")
-st.caption("צייר את חתימתך בתיבה שלמטה (עכבר במחשב / אצבע במסך מגע). ניתן להשאיר ריק אם לא נדרש כרגע.")
-
-canvas_result = st_canvas(
-    fill_color="rgba(255, 255, 255, 0)",
-    stroke_width=3,
-    stroke_color="#000000",
-    background_color="#ffffff",
-    height=150,
-    width=400,
-    drawing_mode="freedraw",
-    key="signature_canvas",
-)
-
-signature_bytes = None
-if canvas_result.image_data is not None:
-    sig_array = canvas_result.image_data.astype("uint8")
-    # בודקים אם המשתמש בכלל צייר משהו (יש פיקסלים לא-שקופים מעבר לרקע)
-    alpha_channel = sig_array[:, :, 3]
-    if alpha_channel.sum() > 0:
-        sig_img = Image.fromarray(sig_array, mode="RGBA")
-        bg = Image.new("RGB", sig_img.size, (255, 255, 255))
-        bg.paste(sig_img, mask=sig_img.split()[-1])
-        sig_buffer = io.BytesIO()
-        bg.save(sig_buffer, format="PNG")
-        signature_bytes = sig_buffer.getvalue()
-
-if st.button("🧹 נקה חתימה", use_container_width=False):
-    st.rerun()
-
-st.divider()
-
-# ==============================================================
-# 📧 הגדרות שליחת מייל
-# ==============================================================
-st.subheader("📧 שליחת הדו\"ח במייל")
-
-with st.expander("⚙️ הגדרות שרת דואר יוצא (SMTP)"):
-    st.caption("עבור Gmail: יש להשתמש ב'סיסמת אפליקציה' (App Password) ולא בסיסמה הרגילה, אם מופעל אימות דו-שלבי.")
-    sender_email = st.text_input("כתובת אימייל שולח", key="sender_email")
-    sender_password = st.text_input("סיסמת אפליקציה / סיסמה", type="password", key="sender_password")
-    smtp_server = st.text_input("שרת SMTP", value="smtp.gmail.com", key="smtp_server")
-    smtp_port = st.number_input("פורט SMTP", value=587, key="smtp_port")
-
-recipient_email = st.text_input("כתובת אימייל נמען", placeholder="example@domain.com")
-
-st.divider()
-
-# שמירת ה-PDF שהופק בין הרצות (כדי לאפשר גם הורדה וגם שליחה בלי להפיק פעמיים)
-if "pdf_bytes" not in st.session_state:
-    st.session_state.pdf_bytes = None
-if "pdf_filename" not in st.session_state:
-    st.session_state.pdf_filename = None
-
 if st.button("🚀 הפק דו\"ח מפקח PDF", type="primary", use_container_width=True):
     if not site_name or not junction_name or not inspector_name:
         st.error("⚠️ אנא מלא את שם האתר, שם הצומת ושם המפקח.")
@@ -435,7 +295,7 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", type="primary", use_container_
             {"title_he": "תוכנית הסדר תנועה מאושרת", "files": plan_files},
             {"title_he": "נספחים / תמונות שונות", "files": misc_files}
         ]
-
+        
         with st.spinner("מפיק דו\"ח מפקח מקצועי..."):
             try:
                 pdf_bytes = generate_pdf(
@@ -446,54 +306,19 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", type="primary", use_container_
                     date_str=str(date_val),
                     work_type=work_type,
                     notes=notes,
-                    photo_sections=photo_sections,
-                    signature_bytes=signature_bytes
+                    photo_sections=photo_sections
                 )
-
-                st.session_state.pdf_bytes = pdf_bytes
-                st.session_state.pdf_filename = f"DD_Engineers_Report_{date_val}.pdf"
-
+                
                 st.success("✅ הדו\"ח הופק בהצלחה!")
+                
+                st.download_button(
+                    label="⬇️ הורד דו\"ח PDF למכשיר",
+                    data=pdf_bytes,
+                    file_name=f"DD_Engineers_Report_{date_val}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
             except Exception as e:
                 st.error(f"שגיאה בהפקת ה-PDF: {e}")
-
-# הצגת כפתורי הורדה ושליחה רק אם קיים דו"ח מופק בזיכרון
-if st.session_state.pdf_bytes:
-    col_dl, col_mail = st.columns(2)
-
-    with col_dl:
-        st.download_button(
-            label="⬇️ הורד דו\"ח PDF למכשיר",
-            data=st.session_state.pdf_bytes,
-            file_name=st.session_state.pdf_filename,
-            mime="application/pdf",
-            use_container_width=True
-        )
-
-    with col_mail:
-        if st.button("📤 שלח דו\"ח במייל", use_container_width=True):
-            if not recipient_email:
-                st.error("⚠️ יש להזין כתובת אימייל נמען.")
-            elif not sender_email or not sender_password:
-                st.error("⚠️ יש למלא את הגדרות השולח (בתפריט 'הגדרות שרת דואר יוצא').")
-            else:
-                with st.spinner("שולח את הדו\"ח במייל..."):
-                    try:
-                        send_email_with_attachment(
-                            sender_email=sender_email,
-                            sender_password=sender_password,
-                            smtp_server=smtp_server,
-                            smtp_port=int(smtp_port),
-                            recipient_email=recipient_email,
-                            subject=f"דו\"ח מפקח הסדר תנועה - {site_name}",
-                            body=f"מצורף דו\"ח מפקח הסדר תנועה עבור האתר: {site_name}, צומת: {junction_name}, תאריך: {date_val}.",
-                            pdf_bytes=st.session_state.pdf_bytes,
-                            filename=st.session_state.pdf_filename
-                        )
-                        st.success(f"✅ הדו\"ח נשלח בהצלחה אל {recipient_email}!")
-                    except smtplib.SMTPAuthenticationError:
-                        st.error("⚠️ שגיאת התחברות לשרת המייל. ודא שהסיסמה נכונה (עבור Gmail יש להשתמש ב'סיסמת אפליקציה').")
-                    except Exception as e:
-                        st.error(f"שגיאה בשליחת המייל: {e}")
 
 st.caption("© כל הזכויות שמורות לנתנאל עוז הררי (Netanel Oz Harary). אין לעשות שימוש או להפיץ ללא אישור בכתב.")
