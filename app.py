@@ -23,28 +23,102 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-# הגדרת תצורת עמוד ב-Streamlit
+# --- הגדרת תצורת עמוד ב-Streamlit ---
 st.set_page_config(page_title="דו\"ח מפקח הסדר תנועה - ד.ד מהנדסים בע''מ", page_icon="🚦", layout="centered")
 
-# הורדת פונט עברי אמין (Rubik) מ-Google Fonts במידת הצורך
-FONT_PATH = "Rubik-Regular.ttf"
-FONT_NAME = 'Helvetica'
+# --- עיצוב CSS הנדסי עם רקע אפור בטון לממשק ---
+st.markdown("""
+    <style>
+    /* רקע אפור בטון הנדסי לאתר */
+    .stApp {
+        background-color: #e2e8f0;
+    }
+    
+    /* באנר עליון מודגש */
+    .main-header {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        border-right: 6px solid #2563eb;
+        padding: 22px;
+        border-radius: 8px;
+        color: white;
+        text-align: center;
+        margin-bottom: 25px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+    }
+    .main-header h1 {
+        color: #ffffff !important;
+        font-size: 26px !important;
+        font-weight: 800 !important;
+        margin-bottom: 6px !important;
+    }
+    .main-header p {
+        color: #cbd5e1 !important;
+        font-size: 15px !important;
+        margin: 0 !important;
+    }
 
-if not os.path.exists(FONT_PATH):
-    font_url = "https://github.com/google/fonts/raw/main/ofl/rubik/Rubik%5Bwght%5D.ttf"
+    /* כותרות סעיף הנדסיות */
+    .section-title {
+        color: #0f172a;
+        font-size: 18px;
+        font-weight: 800;
+        border-right: 5px solid #2563eb;
+        padding-right: 12px;
+        margin-top: 25px;
+        margin-bottom: 15px;
+    }
+
+    /* כפתור הפקה מודגש */
+    .stButton>button {
+        background-color: #0f172a !important;
+        color: white !important;
+        font-size: 18px !important;
+        font-weight: bold !important;
+        padding: 14px 28px !important;
+        border-radius: 6px !important;
+        border: none !important;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2) !important;
+    }
+    .stButton>button:hover {
+        background-color: #2563eb !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# --- הורדת פונטים עבריים סטטיים (Rubik-Regular + Rubik-Bold) ---
+FONT_REGULAR_PATH = "Rubik-Regular.ttf"
+FONT_BOLD_PATH = "Rubik-Bold.ttf"
+
+FONT_NAME = 'Helvetica'
+FONT_BOLD_NAME = 'Helvetica-Bold'
+
+if not os.path.exists(FONT_REGULAR_PATH):
     try:
-        urllib.request.urlretrieve(font_url, FONT_PATH)
+        urllib.request.urlretrieve("https://raw.githubusercontent.com/google/fonts/main/ofl/rubik/static/Rubik-Regular.ttf", FONT_REGULAR_PATH)
     except Exception:
         pass
 
-if os.path.exists(FONT_PATH):
+if not os.path.exists(FONT_BOLD_PATH):
     try:
-        pdfmetrics.registerFont(TTFont('HebrewFont', FONT_PATH))
+        urllib.request.urlretrieve("https://raw.githubusercontent.com/google/fonts/main/ofl/rubik/static/Rubik-Bold.ttf", FONT_BOLD_PATH)
+    except Exception:
+        pass
+
+if os.path.exists(FONT_REGULAR_PATH):
+    try:
+        pdfmetrics.registerFont(TTFont('HebrewFont', FONT_REGULAR_PATH))
         FONT_NAME = 'HebrewFont'
     except Exception:
         FONT_NAME = 'Helvetica'
 
-# פונקציה לעיבוד טקסט בעברית (הפיכת כיוון וחיבור אותיות)
+if os.path.exists(FONT_BOLD_PATH):
+    try:
+        pdfmetrics.registerFont(TTFont('HebrewFont-Bold', FONT_BOLD_PATH))
+        FONT_BOLD_NAME = 'HebrewFont-Bold'
+    except Exception:
+        FONT_BOLD_NAME = FONT_NAME
+
+
 def heb(text):
     if not text:
         return ""
@@ -52,7 +126,7 @@ def heb(text):
     bidi_text = get_display(reshaped_text)
     return bidi_text
 
-# מחלקה למספור עמודים וכותרת תחתית ב-PDF
+
 class NumberedCanvas(canvas.Canvas):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -74,10 +148,10 @@ class NumberedCanvas(canvas.Canvas):
         self.saveState()
         self.setFont(FONT_NAME, 8)
         self.setFillColor(colors.HexColor("#666666"))
-        # הוספת מספר הנייד וזכויות היוצרים בכותרת התחתית
         footer_text = heb(f"כל הזכויות שמורות לנתנאל עוז הררי © | נייד: 054-5520445 | ד.ד מהנדסים בע''מ | עמוד {self._pageNumber} מתוך {page_count}")
         self.drawCentredString(A4[0] / 2.0, 1 * cm, footer_text)
         self.restoreState()
+
 
 def generate_pdf(site_title, junction_name, inspector, license_no, date_str, work_type, notes, photo_sections):
     buffer = io.BytesIO()
@@ -92,17 +166,17 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
 
     styles = getSampleStyleSheet()
     
-    # סגנונות מעוצבים
-    style_header_title = ParagraphStyle('HeaderTitle', fontName=FONT_NAME, fontSize=15, leading=19, textColor=colors.white, alignment=1)
-    style_header_sub = ParagraphStyle('HeaderSub', fontName=FONT_NAME, fontSize=12, leading=16, textColor=colors.white, alignment=1)
-    style_header_small = ParagraphStyle('HeaderSmall', fontName=FONT_NAME, fontSize=8, leading=10, textColor=colors.HexColor("#e2e8f0"), alignment=1)
+    # סגנונות PDF מודגשים ומקצועיים
+    style_header_title = ParagraphStyle('HeaderTitle', fontName=FONT_BOLD_NAME, fontSize=18, leading=22, textColor=colors.white, alignment=1)
+    style_header_sub = ParagraphStyle('HeaderSub', fontName=FONT_BOLD_NAME, fontSize=13, leading=17, textColor=colors.white, alignment=1)
+    style_header_small = ParagraphStyle('HeaderSmall', fontName=FONT_NAME, fontSize=9, leading=11, textColor=colors.HexColor("#e2e8f0"), alignment=1)
 
-    style_proj_title = ParagraphStyle('ProjTitle', fontName=FONT_NAME, fontSize=13, leading=16, textColor=colors.HexColor("#182b49"), alignment=2)
-    style_cell_label = ParagraphStyle('CellLabel', fontName=FONT_NAME, fontSize=9, leading=12, textColor=colors.HexColor("#0f172a"), alignment=2)
-    style_notes_title = ParagraphStyle('NotesTitle', fontName=FONT_NAME, fontSize=11, leading=14, textColor=colors.HexColor("#182b49"), alignment=2)
-    style_notes_content = ParagraphStyle('NotesContent', fontName=FONT_NAME, fontSize=9.5, leading=13, textColor=colors.HexColor("#1e293b"), alignment=2)
-    style_sec_header = ParagraphStyle('SecHeader', fontName=FONT_NAME, fontSize=10, leading=13, textColor=colors.HexColor("#0f172a"), alignment=2)
-    style_caption = ParagraphStyle('Caption', fontName=FONT_NAME, fontSize=8, leading=10, textColor=colors.HexColor("#475569"), alignment=1)
+    style_proj_title = ParagraphStyle('ProjTitle', fontName=FONT_BOLD_NAME, fontSize=14, leading=18, textColor=colors.HexColor("#182b49"), alignment=2)
+    style_cell_label = ParagraphStyle('CellLabel', fontName=FONT_BOLD_NAME, fontSize=10, leading=14, textColor=colors.HexColor("#0f172a"), alignment=2)
+    style_notes_title = ParagraphStyle('NotesTitle', fontName=FONT_BOLD_NAME, fontSize=12, leading=16, textColor=colors.HexColor("#182b49"), alignment=2)
+    style_notes_content = ParagraphStyle('NotesContent', fontName=FONT_BOLD_NAME, fontSize=10, leading=14, textColor=colors.HexColor("#1e293b"), alignment=2)
+    style_sec_header = ParagraphStyle('SecHeader', fontName=FONT_BOLD_NAME, fontSize=11, leading=14, textColor=colors.HexColor("#0f172a"), alignment=2)
+    style_caption = ParagraphStyle('Caption', fontName=FONT_BOLD_NAME, fontSize=8.5, leading=11, textColor=colors.HexColor("#475569"), alignment=1)
 
     story = []
 
@@ -115,8 +189,8 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
     header_table = Table(header_data, colWidths=[18 * cm])
     header_table.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#182b49")),
-        ('TOPPADDING', (0,0), (-1,-1), 6),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ('TOPPADDING', (0,0), (-1,-1), 8),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
     ]))
@@ -140,8 +214,8 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
     info_table.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#f1f5f9")),
         ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e1")),
-        ('TOPPADDING', (0,0), (-1,-1), 6),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ('TOPPADDING', (0,0), (-1,-1), 7),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 7),
         ('LEFTPADDING', (0,0), (-1,-1), 8),
         ('RIGHTPADDING', (0,0), (-1,-1), 8),
     ]))
@@ -166,7 +240,7 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
     story.append(notes_table)
     story.append(Spacer(1, 0.5 * cm))
 
-    # 5. תמונות עם תיאורים דינמיים (רשות)
+    # 5. תמונות לפי קטגוריות
     for section in photo_sections:
         files = section.get("files")
         captions = section.get("captions", [])
@@ -176,10 +250,10 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
         sec_title_data = [[Paragraph(heb(section['title_he']), style_sec_header)]]
         sec_title_table = Table(sec_title_data, colWidths=[18 * cm])
         sec_title_table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#e2e8f0")),
+            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#cbd5e1")),
             ('LINELEFT', (0,0), (0,-1), 3, colors.HexColor("#182b49")),
-            ('TOPPADDING', (0,0), (-1,-1), 4),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+            ('TOPPADDING', (0,0), (-1,-1), 5),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
             ('RIGHTPADDING', (0,0), (-1,-1), 8),
         ]))
 
@@ -194,7 +268,6 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
 
                 rl_img = RLImage(img_temp, width=8.2 * cm, height=5.5 * cm)
                 
-                # בדיקה אם הוזן תיאור אישי לתמונה
                 custom_cap = captions[i].strip() if i < len(captions) and captions[i].strip() else f"תמונה #{i+1}"
                 cap = Paragraph(heb(custom_cap), style_caption)
                 
@@ -203,7 +276,6 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
             except Exception:
                 continue
 
-        # סידור תמונות בזוגות
         grid_rows = []
         for i in range(0, len(photo_cells), 2):
             if i + 1 < len(photo_cells):
@@ -232,24 +304,26 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
     ]
     sig_table = Table(sig_data, colWidths=[9 * cm, 9 * cm])
     sig_table.setStyle(TableStyle([
-        ('TOPPADDING', (0,0), (-1,-1), 4),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('TOPPADDING', (0,0), (-1,-1), 5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
     ]))
     story.append(KeepTogether([Spacer(1, 0.5 * cm), sig_table]))
 
-    # בניית ה-PDF
     doc.build(story, canvasmaker=NumberedCanvas)
     buffer.seek(0)
     return buffer.getvalue()
 
 
 # --- ממשק המשתמש (Streamlit UI) ---
-st.title("🚦 ד.ד מהנדסים בע''מ")
-st.subheader("מערכת הפקת דו\"ח מפקח הסדר תנועה")
 
-st.divider()
+st.markdown("""
+    <div class="main-header">
+        <h1>🚦 ד.ד מהנדסים בע''מ</h1>
+        <p>מערכת מקצועית להפקת דו"חות פיקוח הסדרי תנועה</p>
+    </div>
+""", unsafe_allow_html=True)
 
-st.subheader("📋 פרטי האתר והמפקח")
+st.markdown('<div class="section-title">📋 פרטי האתר והמפקח</div>', unsafe_allow_html=True)
 
 col1, col2 = st.columns(2)
 with col1:
@@ -260,23 +334,32 @@ with col1:
 
 with col2:
     date_val = st.date_input("תאריך הבדיקה")
-    work_type = st.selectbox("סוג הפעילות / העבודה", [
+    
+    # רשימת סוגי העבודה כולל "התקנת עמדת UPS"
+    work_type_options = [
         "הסדר תנועה זמני",
         "החלפת מנגנון",
         "חריצת גלאים",
         "התקנת מצלמות",
+        "התקנת עמדת UPS",
         "אישור הסטת נתיבים",
         "בדיקת שילוט",
         "תחזוקת רמזורים",
         "ביקורת תקופתית",
         "אחר"
-    ])
+    ]
+    selected_work_type = st.selectbox("סוג הפעילות / העבודה", work_type_options)
+    
+    # פתיחת שדה טקסט חופשי במידה ונבחר "אחר"
+    if selected_work_type == "אחר":
+        custom_work_type = st.text_input("רשום את סוג העבודה (אחר):", placeholder="לדוגמה: תיקון כבל תקשורת")
+        final_work_type = custom_work_type if custom_work_type.strip() else "אחר"
+    else:
+        final_work_type = selected_work_type
 
-notes = st.text_area("הערות מפקח, מפגעים ודגשים", placeholder="רשום הערות הנדסיות כאן...")
+notes = st.text_area("הערות מפקח, מפגעים ודגשים", placeholder="רשום הערות הנדסיות כאן...", height=100)
 
-st.divider()
-
-st.subheader("📸 העלאת תמונות ותיאורים")
+st.markdown('<div class="section-title">📸 העלאת תמונות ותיאורים</div>', unsafe_allow_html=True)
 
 def render_upload_section(label, key_prefix):
     files = st.file_uploader(label, type=["jpg", "jpeg", "png"], accept_multiple_files=True, key=key_prefix)
@@ -298,14 +381,15 @@ with col_a:
 with col_b:
     after_files, after_caps = render_upload_section("תמונות - אחרי הסדר", "after")
     detectors_files, detectors_caps = render_upload_section("תמונות - חריצת גלאים", "detectors")
-    plan_files, plan_caps = render_upload_section("צילום תוכנית / שרטוט", "plan")
+    ups_files, ups_caps = render_upload_section("תמונות - התקנת עמדת UPS", "ups")
 
+plan_files, plan_caps = render_upload_section("צילום תוכנית / שרטוט", "plan")
 misc_files, misc_caps = render_upload_section("תמונות - שונות / נספחים", "misc")
 
-st.divider()
+st.markdown("<br>", unsafe_allow_html=True)
 
 # יצירת ה-PDF
-if st.button("🚀 הפק דו\"ח מפקח PDF", type="primary", use_container_width=True):
+if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
     if not site_name or not junction_name or not inspector_name:
         st.error("⚠️ אנא מלא את שם האתר, שם הצומת ושם המפקח.")
     else:
@@ -315,6 +399,7 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", type="primary", use_container_
             {"title_he": "החלפת מנגנון / בקר תנועה", "files": mechanism_files, "captions": mechanism_caps},
             {"title_he": "חריצת גלאים", "files": detectors_files, "captions": detectors_caps},
             {"title_he": "התקנת מצלמות תנועה", "files": cameras_files, "captions": cameras_caps},
+            {"title_he": "התקנת עמדת UPS", "files": ups_files, "captions": ups_caps},
             {"title_he": "תוכנית הסדר תנועה מאושרת", "files": plan_files, "captions": plan_caps},
             {"title_he": "נספחים / תמונות שונות", "files": misc_files, "captions": misc_caps}
         ]
@@ -327,7 +412,7 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", type="primary", use_container_
                     inspector=inspector_name,
                     license_no=license_no,
                     date_str=str(date_val),
-                    work_type=work_type,
+                    work_type=final_work_type,
                     notes=notes,
                     photo_sections=photo_sections
                 )
@@ -338,8 +423,8 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", type="primary", use_container_
             except Exception as e:
                 st.error(f"שגיאה בהפקת ה-PDF: {e}")
 
-# כפתור ההורדה מופיע מיד לאחר יצירת הקובץ
 if 'pdf_bytes' in st.session_state:
+    st.markdown("<br>", unsafe_allow_html=True)
     st.download_button(
         label="⬇️ הורד דו\"ח PDF למכשיר",
         data=st.session_state['pdf_bytes'],
@@ -348,4 +433,5 @@ if 'pdf_bytes' in st.session_state:
         use_container_width=True
     )
 
+st.markdown("<hr style='border: 0.5px solid #cbd5e1;'>", unsafe_allow_html=True)
 st.caption("© כל הזכויות שמורות לנתנאל עוז הררי | נייד: 054-5520445. אין לעשות שימוש או להפיץ ללא אישור בכתב.")
