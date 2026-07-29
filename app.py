@@ -60,11 +60,6 @@ st.markdown("""
         margin: 0 !important;
     }
 
-    /* עיצוב מסגרות וכרטיסיות קלט */
-    div[data-testid="stVerticalBlock"] > div[style*="flex-direction: column"] > div {
-        border-radius: 10px;
-    }
-
     /* התאמת כפתור ההפקה */
     .stButton>button {
         background-color: #182b49 !important;
@@ -94,25 +89,25 @@ st.markdown("""
         margin-bottom: 15px;
     }
     </style>
-""", unsafe_text_html=True)
+""", unsafe_allow_html=True)
 
-# --- הורדת פונט עברי איכותי (Heebo & Heebo-Bold) עבור ה-PDF ---
-FONT_REGULAR_PATH = "Heebo-Regular.ttf"
-FONT_BOLD_PATH = "Heebo-Bold.ttf"
+# --- הורדת פונט עברי איכותי (Rubik) עבור ה-PDF ---
+FONT_REGULAR_PATH = "Rubik-Regular.ttf"
+FONT_BOLD_PATH = "Rubik-Bold.ttf"
 
 FONT_NAME = 'Helvetica'
 FONT_BOLD_NAME = 'Helvetica-Bold'
 
-# הורדת הפונטים מ-Google Fonts במידת הצורך
+# הורדת פונט Rubik מ-Google Fonts
 if not os.path.exists(FONT_REGULAR_PATH):
     try:
-        urllib.request.urlretrieve("https://github.com/google/fonts/raw/main/ofl/heebo/Heebo%5Bwght%5D.ttf", FONT_REGULAR_PATH)
+        urllib.request.urlretrieve("https://github.com/google/fonts/raw/main/ofl/rubik/Rubik%5Bwght%5D.ttf", FONT_REGULAR_PATH)
     except Exception:
         pass
 
 if not os.path.exists(FONT_BOLD_PATH):
     try:
-        urllib.request.urlretrieve("https://github.com/google/fonts/raw/main/ofl/heebo/static/Heebo-Bold.ttf", FONT_BOLD_PATH)
+        urllib.request.urlretrieve("https://github.com/google/fonts/raw/main/ofl/rubik/static/Rubik-Bold.ttf", FONT_BOLD_PATH)
     except Exception:
         pass
 
@@ -179,27 +174,23 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
 
     styles = getSampleStyleSheet()
     
-    # --- סגנונות טקסט מעודכנים ומוגדלים ב-PDF ---
-    # כותרת ראשית מוגדלת ומודגשת
+    # --- סגנונות טקסט מעודכנים ב-PDF ---
     style_header_title = ParagraphStyle('HeaderTitle', fontName=FONT_BOLD_NAME, fontSize=18, leading=22, textColor=colors.white, alignment=1)
     style_header_sub = ParagraphStyle('HeaderSub', fontName=FONT_BOLD_NAME, fontSize=13, leading=17, textColor=colors.white, alignment=1)
     style_header_small = ParagraphStyle('HeaderSmall', fontName=FONT_NAME, fontSize=9, leading=11, textColor=colors.HexColor("#cbd5e1"), alignment=1)
 
-    # כותרות פרטים ומלל מודגש
     style_proj_title = ParagraphStyle('ProjTitle', fontName=FONT_BOLD_NAME, fontSize=14, leading=18, textColor=colors.HexColor("#182b49"), alignment=2)
     style_cell_label = ParagraphStyle('CellLabel', fontName=FONT_BOLD_NAME, fontSize=10, leading=14, textColor=colors.HexColor("#0f172a"), alignment=2)
     
-    # מלל והערות מפקח
     style_notes_title = ParagraphStyle('NotesTitle', fontName=FONT_BOLD_NAME, fontSize=12, leading=16, textColor=colors.HexColor("#182b49"), alignment=2)
     style_notes_content = ParagraphStyle('NotesContent', fontName=FONT_NAME, fontSize=10.5, leading=15, textColor=colors.HexColor("#1e293b"), alignment=2)
     
-    # כותרות סעיפי תמונות
     style_sec_header = ParagraphStyle('SecHeader', fontName=FONT_BOLD_NAME, fontSize=11, leading=14, textColor=colors.HexColor("#0f172a"), alignment=2)
     style_caption = ParagraphStyle('Caption', fontName=FONT_BOLD_NAME, fontSize=9, leading=11, textColor=colors.HexColor("#334155"), alignment=1)
 
     story = []
 
-    # 1. באנר כותרת ראשית בולט
+    # 1. באנר כותרת ראשית
     header_data = [
         [Paragraph(heb("ד.ד מהנדסים בע''מ - D.D. ENGINEERS LTD"), style_header_title)],
         [Paragraph(heb("דו\"ח פיקוח ואכיפת הסדרי תנועה"), style_header_sub)],
@@ -333,19 +324,18 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
     return buffer.getvalue()
 
 
-# --- ממשק המשתמש המשודרג ב-Streamlit ---
+# --- ממשק המשתמש ב-Streamlit ---
 
-# באנר עליון מרהיב
 st.markdown("""
     <div class="main-header">
         <h1>🚦 ד.ד מהנדסים בע''מ</h1>
         <p>מערכת מקצועית להפקת דו"חות פיקוח הסדרי תנועה</p>
     </div>
-""", unsafe_text_html=True)
+""", unsafe_allow_html=True)
 
 # 1. כרטיסיית פרטי אתר
 with st.container():
-    st.markdown('<div class="section-title">📋 פרטי האתר והמפקח</div>', unsafe_text_html=True)
+    st.markdown('<div class="section-title">📋 פרטי האתר והמפקח</div>', unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
     with col1:
@@ -372,7 +362,7 @@ with st.container():
 
 # 2. כרטיסיית תמונות ותיאורים
 with st.container():
-    st.markdown('<div class="section-title">📸 העלאת תמונות ותיאורים (לפי קטגוריות)</div>', unsafe_text_html=True)
+    st.markdown('<div class="section-title">📸 העלאת תמונות ותיאורים (לפי קטגוריות)</div>', unsafe_allow_html=True)
 
     def render_upload_section(label, key_prefix):
         files = st.file_uploader(label, type=["jpg", "jpeg", "png"], accept_multiple_files=True, key=key_prefix)
@@ -398,7 +388,7 @@ with st.container():
 
     misc_files, misc_caps = render_upload_section("תמונות - שונות / נספחים", "misc")
 
-st.markdown("<br>", unsafe_text_html=True)
+st.markdown("<br>", unsafe_allow_html=True)
 
 # 3. הפקה והורדה
 if st.button("🚀 הפק דו\"ח מפקח PDF מעוצב", use_container_width=True):
@@ -435,7 +425,7 @@ if st.button("🚀 הפק דו\"ח מפקח PDF מעוצב", use_container_width
                 st.error(f"שגיאה בהפקת ה-PDF: {e}")
 
 if 'pdf_bytes' in st.session_state:
-    st.markdown("<br>", unsafe_text_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
     st.download_button(
         label="⬇️ הורד דו\"ח PDF למכשיר",
         data=st.session_state['pdf_bytes'],
@@ -444,5 +434,5 @@ if 'pdf_bytes' in st.session_state:
         use_container_width=True
     )
 
-st.markdown("<hr>", unsafe_text_html=True)
+st.markdown("<hr>", unsafe_allow_html=True)
 st.caption("© כל הזכויות שמורות לנתנאל עוז הררי | נייד: 054-5520445. אין לעשות שימוש או להפיץ ללא אישור בכתב.")
