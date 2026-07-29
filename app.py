@@ -85,38 +85,57 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- הורדת פונטים עבריים סטטיים (Rubik-Regular + Rubik-Bold) ---
+# --- פונקציית הורדה מאובטחת של גופנים עבריים ---
 FONT_REGULAR_PATH = "Rubik-Regular.ttf"
 FONT_BOLD_PATH = "Rubik-Bold.ttf"
+
+def safe_download_font(urls, dest_path):
+    if os.path.exists(dest_path) and os.path.getsize(dest_path) > 10000:
+        return True
+    
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+    for url in urls:
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=10) as response, open(dest_path, 'wb') as out_file:
+                out_file.write(response.read())
+            if os.path.exists(dest_path) and os.path.getsize(dest_path) > 10000:
+                return True
+        except Exception:
+            continue
+    return False
+
+# מקורות ראשיים וגיבויים לגופנים
+regular_urls = [
+    "https://raw.githubusercontent.com/google/fonts/main/ofl/rubik/static/Rubik-Regular.ttf",
+    "https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/Roboto-Regular.ttf"
+]
+bold_urls = [
+    "https://raw.githubusercontent.com/google/fonts/main/ofl/rubik/static/Rubik-Bold.ttf",
+    "https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/Roboto-Bold.ttf"
+]
+
+safe_download_font(regular_urls, FONT_REGULAR_PATH)
+safe_download_font(bold_urls, FONT_BOLD_PATH)
 
 FONT_NAME = 'Helvetica'
 FONT_BOLD_NAME = 'Helvetica-Bold'
 
-if not os.path.exists(FONT_REGULAR_PATH):
-    try:
-        urllib.request.urlretrieve("https://raw.githubusercontent.com/google/fonts/main/ofl/rubik/static/Rubik-Regular.ttf", FONT_REGULAR_PATH)
-    except Exception:
-        pass
-
-if not os.path.exists(FONT_BOLD_PATH):
-    try:
-        urllib.request.urlretrieve("https://raw.githubusercontent.com/google/fonts/main/ofl/rubik/static/Rubik-Bold.ttf", FONT_BOLD_PATH)
-    except Exception:
-        pass
-
-if os.path.exists(FONT_REGULAR_PATH):
+if os.path.exists(FONT_REGULAR_PATH) and os.path.getsize(FONT_REGULAR_PATH) > 10000:
     try:
         pdfmetrics.registerFont(TTFont('HebrewFont', FONT_REGULAR_PATH))
         FONT_NAME = 'HebrewFont'
     except Exception:
         FONT_NAME = 'Helvetica'
 
-if os.path.exists(FONT_BOLD_PATH):
+if os.path.exists(FONT_BOLD_PATH) and os.path.getsize(FONT_BOLD_PATH) > 10000:
     try:
         pdfmetrics.registerFont(TTFont('HebrewFont-Bold', FONT_BOLD_PATH))
         FONT_BOLD_NAME = 'HebrewFont-Bold'
     except Exception:
         FONT_BOLD_NAME = FONT_NAME
+else:
+    FONT_BOLD_NAME = FONT_NAME
 
 
 def heb(text):
@@ -335,7 +354,6 @@ with col1:
 with col2:
     date_val = st.date_input("תאריך הבדיקה")
     
-    # רשימת סוגי העבודה כולל "התקנת עמדת UPS"
     work_type_options = [
         "הסדר תנועה זמני",
         "החלפת מנגנון",
@@ -350,7 +368,6 @@ with col2:
     ]
     selected_work_type = st.selectbox("סוג הפעילות / העבודה", work_type_options)
     
-    # פתיחת שדה טקסט חופשי במידה ונבחר "אחר"
     if selected_work_type == "אחר":
         custom_work_type = st.text_input("רשום את סוג העבודה (אחר):", placeholder="לדוגמה: תיקון כבל תקשורת")
         final_work_type = custom_work_type if custom_work_type.strip() else "אחר"
