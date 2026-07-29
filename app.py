@@ -26,15 +26,33 @@ from reportlab.platypus import (
 # --- הגדרת תצורת עמוד ב-Streamlit ---
 st.set_page_config(page_title="דו\"ח מפקח הסדר תנועה - ד.ד מהנדסים בע''מ", page_icon="🚦", layout="centered")
 
+# --- ניהול מספר דו"ח רץ (מציאת/עדכון קובץ המנה המקומי) ---
+COUNTER_FILE = "report_counter.txt"
+START_NUMBER = 100
+
+def get_next_report_number():
+    if not os.path.exists(COUNTER_FILE):
+        return START_NUMBER
+    try:
+        with open(COUNTER_FILE, "r") as f:
+            val = int(f.read().strip())
+            return val
+    except Exception:
+        return START_NUMBER
+
+def increment_report_number():
+    current = get_next_report_number()
+    next_num = current + 1
+    with open(COUNTER_FILE, "w") as f:
+        f.write(str(next_num))
+    return current
+
 # --- עיצוב CSS הנדסי עם רקע אפור בטון לממשק ---
 st.markdown("""
     <style>
-    /* רקע אפור בטון הנדסי לאתר */
     .stApp {
         background-color: #e2e8f0;
     }
-    
-    /* באנר עליון מודגש */
     .main-header {
         background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
         border-right: 6px solid #2563eb;
@@ -56,8 +74,6 @@ st.markdown("""
         font-size: 15px !important;
         margin: 0 !important;
     }
-
-    /* כותרות סעיף הנדסיות */
     .section-title {
         color: #0f172a;
         font-size: 18px;
@@ -67,8 +83,6 @@ st.markdown("""
         margin-top: 25px;
         margin-bottom: 15px;
     }
-
-    /* כפתור הפקה מודגש */
     .stButton>button {
         background-color: #0f172a !important;
         color: white !important;
@@ -105,7 +119,6 @@ def safe_download_font(urls, dest_path):
             continue
     return False
 
-# מקורות ראשיים וגיבויים לגופנים
 regular_urls = [
     "https://raw.githubusercontent.com/google/fonts/main/ofl/rubik/static/Rubik-Regular.ttf",
     "https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/Roboto-Regular.ttf"
@@ -172,7 +185,7 @@ class NumberedCanvas(canvas.Canvas):
         self.restoreState()
 
 
-def generate_pdf(site_title, junction_name, inspector, license_no, date_str, work_type, notes, photo_sections):
+def generate_pdf(report_num, site_title, junction_name, inspector, license_no, date_str, work_type, notes, photo_sections):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -185,7 +198,6 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
 
     styles = getSampleStyleSheet()
     
-    # סגנונות PDF מודגשים ומקצועיים
     style_header_title = ParagraphStyle('HeaderTitle', fontName=FONT_BOLD_NAME, fontSize=18, leading=22, textColor=colors.white, alignment=1)
     style_header_sub = ParagraphStyle('HeaderSub', fontName=FONT_BOLD_NAME, fontSize=13, leading=17, textColor=colors.white, alignment=1)
     style_header_small = ParagraphStyle('HeaderSmall', fontName=FONT_NAME, fontSize=9, leading=11, textColor=colors.HexColor("#e2e8f0"), alignment=1)
@@ -199,10 +211,10 @@ def generate_pdf(site_title, junction_name, inspector, license_no, date_str, wor
 
     story = []
 
-    # 1. באנר כותרת ראשית
+    # 1. באנר כותרת ראשית (כולל מספר דו"ח רץ)
     header_data = [
         [Paragraph(heb("ד.ד מהנדסים בע''מ - D.D. ENGINEERS LTD"), style_header_title)],
-        [Paragraph(heb("דו\"ח פיקוח ואכיפת הסדרי תנועה"), style_header_sub)],
+        [Paragraph(heb(f"דו\"ח פיקוח ואכיפת הסדרי תנועה מס' {report_num}"), style_header_sub)],
         [Paragraph(heb("מסמך פיקוח שטח רשמי"), style_header_small)]
     ]
     header_table = Table(header_data, colWidths=[18 * cm])
@@ -342,6 +354,10 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
+# הצגת מספר הדו"ח הנוכחי בממשק
+current_num = get_next_report_number()
+st.info(f"📌 **מספר הדו\"ח המיועד להפקה הבאה:** #{current_num}")
+
 st.markdown('<div class="section-title">📋 פרטי האתר והמפקח</div>', unsafe_allow_html=True)
 
 col1, col2 = st.columns(2)
@@ -410,6 +426,9 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
     if not site_name or not junction_name or not inspector_name:
         st.error("⚠️ אנא מלא את שם האתר, שם הצומת ושם המפקח.")
     else:
+        # מקבלים ומעלים את מספר הדו"ח הרץ
+        report_num = increment_report_number()
+        
         photo_sections = [
             {"title_he": "מצב קיים בשטח (לפני העבודות)", "files": before_files, "captions": before_caps},
             {"title_he": "הסדר תנועה סופי (אחרי העבודות)", "files": after_files, "captions": after_caps},
@@ -424,6 +443,7 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
         with st.spinner("מפיק דו\"ח מפקח מקצועי..."):
             try:
                 pdf_bytes = generate_pdf(
+                    report_num=report_num,
                     site_title=site_name,
                     junction_name=junction_name,
                     inspector=inspector_name,
@@ -435,8 +455,8 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
                 )
                 
                 st.session_state['pdf_bytes'] = pdf_bytes
-                st.session_state['pdf_filename'] = f"DD_Engineers_Report_{date_val}.pdf"
-                st.success("✅ הדו\"ח הופק בהצלחה!")
+                st.session_state['pdf_filename'] = f"DD_Engineers_Report_{report_num}_{date_val}.pdf"
+                st.success(f"✅ דו\"ח מס' {report_num} הופק בהצלחה!")
             except Exception as e:
                 st.error(f"שגיאה בהפקת ה-PDF: {e}")
 
