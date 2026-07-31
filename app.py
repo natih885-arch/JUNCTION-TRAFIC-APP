@@ -185,7 +185,7 @@ class NumberedCanvas(canvas.Canvas):
         self.restoreState()
 
 
-def generate_pdf(report_num, site_title, junction_name, inspector, license_no, date_str, work_type, notes, photo_sections):
+def generate_pdf(report_num, site_title, junction_name, inspector, license_no, permit_no, date_str, work_type, notes, photo_sections):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -234,12 +234,16 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, d
 
     # 3. טבלת פרטים
     insp_str = f"מפקח: {inspector}"
-    if license_no.strip():
-        insp_str += f" (רישיון: {license_no})"
+    if license_no and license_no.strip():
+        insp_str += f" (רישיון: {license_no.strip()})"
+
+    work_type_str = f"סוג עבודה: {work_type}"
+    if permit_no and permit_no.strip():
+        work_type_str += f" | היתר: {permit_no.strip()}"
 
     info_data = [
         [Paragraph(heb(insp_str), style_cell_label), Paragraph(heb(f"צומת / מיקום: {junction_name}"), style_cell_label)],
-        [Paragraph(heb(f"סוג עבודה: {work_type}"), style_cell_label), Paragraph(heb(f"תאריך: {date_str}"), style_cell_label)]
+        [Paragraph(heb(work_type_str), style_cell_label), Paragraph(heb(f"תאריך: {date_str}"), style_cell_label)]
     ]
     info_table = Table(info_data, colWidths=[9 * cm, 9 * cm])
     info_table.setStyle(TableStyle([
@@ -326,12 +330,14 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, d
 
     # 6. חתימה
     sig_text = f"שם המפקח: {inspector}"
-    if license_no.strip():
-        sig_text += f" | מס' רישיון: {license_no}"
+    if license_no and license_no.strip():
+        sig_text += f" | מס' רישיון: {license_no.strip()}"
+    if permit_no and permit_no.strip():
+        sig_text += f" | היתר עבודה: {permit_no.strip()}"
 
     sig_data = [
         [Paragraph(heb(f"תאריך: {date_str}"), style_cell_label), Paragraph(heb(sig_text), style_cell_label)],
-        ["", Paragraph(heb("חתימה: _______________________"), style_cell_label)]
+        ["", Paragraph(heb("חתימת המפקח: _______________________"), style_cell_label)]
     ]
     sig_table = Table(sig_data, colWidths=[9 * cm, 9 * cm])
     sig_table.setStyle(TableStyle([
@@ -365,13 +371,16 @@ with col1:
     site_name = st.text_input("שם האתר / פרויקט", "פרויקט מרכז 1")
     junction_name = st.text_input("שם הצומת / מיקום", "צומת הרצל - ז'בוטינסקי")
     inspector_name = st.text_input("שם המפקח", "נתנאל עוז")
-    license_no = st.text_input("מספר רישיון / מ.פ", "1015546")
+    license_no = st.text_input("מספר רישיון / מ.פ (רשות)", "1015546")
+    permit_no = st.text_input("מספר היתר עבודה (רשות)", placeholder="לדוגמה: H-2026-99")
 
 with col2:
     date_val = st.date_input("תאריך הבדיקה")
     
     work_type_options = [
         "הסדר תנועה זמני",
+        "הקמת צומת",
+        "הקמת צומת חדשה",
         "החלפת מנגנון",
         "חריצת גלאים",
         "התקנת מצלמות",
@@ -448,6 +457,7 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
                     junction_name=junction_name,
                     inspector=inspector_name,
                     license_no=license_no,
+                    permit_no=permit_no,
                     date_str=str(date_val),
                     work_type=final_work_type,
                     notes=notes,
