@@ -1,5 +1,6 @@
 import io
 import os
+import urllib.request
 import streamlit as st
 import arabic_reshaper
 from bidi.algorithm import get_display
@@ -37,34 +38,45 @@ def increment_report_number():
         f.write(str(next_num))
     return current
 
-# --- טעינת גופן עברי מערכתי בטוח (Arial/David) למניעת ריבועים שחורים ---
-FONT_NAME = 'Helvetica'
-FONT_BOLD_NAME = 'Helvetica-Bold'
+# --- הורדת גופן עברי מקומית והגדרתו עבור ReportLab ---
+FONT_NAME = 'HebrewFont'
+FONT_BOLD_NAME = 'HebrewFont-Bold'
 
 def setup_hebrew_fonts():
-    global FONT_NAME, FONT_BOLD_NAME
-    # רשימת נתיבים פוטנציאליים לגופנים עבריים ב-Windows/Linux
-    possible_fonts = [
-        ("C:/Windows/Fonts/arial.ttf", "C:/Windows/Fonts/arialbd.ttf"),
-        ("C:/Windows/Fonts/calibri.ttf", "C:/Windows/Fonts/calibrib.ttf"),
-        ("C:/Windows/Fonts/david.ttf", "C:/Windows/Fonts/davidbd.ttf"),
-        ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
-    ]
-    
-    for reg_path, bold_path in possible_fonts:
-        if os.path.exists(reg_path):
-            try:
-                pdfmetrics.registerFont(TTFont('SystemHebrew', reg_path))
-                FONT_NAME = 'SystemHebrew'
-                if os.path.exists(bold_path):
-                    pdfmetrics.registerFont(TTFont('SystemHebrew-Bold', bold_path))
-                    FONT_BOLD_NAME = 'SystemHebrew-Bold'
-                else:
-                    FONT_BOLD_NAME = 'SystemHebrew'
-                return True
-            except Exception:
-                continue
-    return False
+    font_reg_path = "Rubik-Regular.ttf"
+    font_bold_path = "Rubik-Bold.ttf"
+
+    # קישורים ישירים ויציבים לגופנים משרתי Google Fonts ב-GitHub
+    url_reg = "https://raw.githubusercontent.com/google/fonts/main/ofl/rubik/Rubik%5Bwght%5D.ttf"
+    url_bold = "https://raw.githubusercontent.com/google/fonts/main/ofl/rubik/Rubik-Bold.ttf"
+
+    # הורדה במידה ולא קיימים מקומית
+    if not os.path.exists(font_reg_path):
+        try:
+            req = urllib.request.Request(url_reg, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req) as response, open(font_reg_path, 'wb') as out_file:
+                out_file.write(response.read())
+        except Exception as e:
+            pass
+
+    if not os.path.exists(font_bold_path):
+        try:
+            req = urllib.request.Request(url_bold, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req) as response, open(font_bold_path, 'wb') as out_file:
+                out_file.write(response.read())
+        except Exception as e:
+            pass
+
+    # רישום הגופנים במידה והורדו בהצלחה
+    try:
+        if os.path.exists(font_reg_path):
+            pdfmetrics.registerFont(TTFont(FONT_NAME, font_reg_path))
+        if os.path.exists(font_bold_path):
+            pdfmetrics.registerFont(TTFont(FONT_BOLD_NAME, font_bold_path))
+        else:
+            pdfmetrics.registerFont(TTFont(FONT_BOLD_NAME, font_reg_path))
+    except Exception as e:
+        pass
 
 setup_hebrew_fonts()
 
