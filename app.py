@@ -26,7 +26,7 @@ from reportlab.platypus import (
 # --- הגדרת תצורת עמוד ב-Streamlit ---
 st.set_page_config(page_title="דו\"ח מפקח הסדר תנועה - ד.ד מהנדסים בע''מ", page_icon="🚦", layout="centered")
 
-# --- ניהול מספר דו"ח רץ (מציאת/עדכון קובץ המנה המקומי) ---
+# --- ניהול מספר דו"ח רץ (קובץ מקומי) ---
 COUNTER_FILE = "report_counter.txt"
 START_NUMBER = 100
 
@@ -35,8 +35,7 @@ def get_next_report_number():
         return START_NUMBER
     try:
         with open(COUNTER_FILE, "r") as f:
-            val = int(f.read().strip())
-            return val
+            return int(f.read().strip())
     except Exception:
         return START_NUMBER
 
@@ -47,7 +46,7 @@ def increment_report_number():
         f.write(str(next_num))
     return current
 
-# --- עיצוב CSS הנדסי עם רקע אפור בטון לממשק ---
+# --- עיצוב CSS הנדסי לממשק ---
 st.markdown("""
     <style>
     .stApp {
@@ -99,37 +98,25 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- פונקציית הורדה מאובטחת של גופנים עבריים ---
-FONT_REGULAR_PATH = "Rubik-Regular.ttf"
-FONT_BOLD_PATH = "Rubik-Bold.ttf"
+# --- פונקציית הורדה וטעינה מאובטחת של גופנים עבריים נקיים ---
+FONT_REGULAR_PATH = "NotoSansHebrew-Regular.ttf"
+FONT_BOLD_PATH = "NotoSansHebrew-Bold.ttf"
 
-def safe_download_font(urls, dest_path):
+def download_file(url, dest_path):
     if os.path.exists(dest_path) and os.path.getsize(dest_path) > 10000:
         return True
-    
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-    for url in urls:
-        try:
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=10) as response, open(dest_path, 'wb') as out_file:
-                out_file.write(response.read())
-            if os.path.exists(dest_path) and os.path.getsize(dest_path) > 10000:
-                return True
-        except Exception:
-            continue
-    return False
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=12) as response, open(dest_path, 'wb') as out_file:
+            out_file.write(response.read())
+        return os.path.exists(dest_path) and os.path.getsize(dest_path) > 10000
+    except Exception:
+        return False
 
-regular_urls = [
-    "https://raw.githubusercontent.com/google/fonts/main/ofl/rubik/static/Rubik-Regular.ttf",
-    "https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/Roboto-Regular.ttf"
-]
-bold_urls = [
-    "https://raw.githubusercontent.com/google/fonts/main/ofl/rubik/static/Rubik-Bold.ttf",
-    "https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/Roboto-Bold.ttf"
-]
-
-safe_download_font(regular_urls, FONT_REGULAR_PATH)
-safe_download_font(bold_urls, FONT_BOLD_PATH)
+# גופני Noto Sans Hebrew לקבלת עברית חדשה ונקייה
+download_file("https://github.com/google/fonts/raw/main/ofl/notosanshebrew/static/NotoSansHebrew-Regular.ttf", FONT_REGULAR_PATH)
+download_file("https://github.com/google/fonts/raw/main/ofl/notosanshebrew/static/NotoSansHebrew-Bold.ttf", FONT_BOLD_PATH)
 
 FONT_NAME = 'Helvetica'
 FONT_BOLD_NAME = 'Helvetica-Bold'
@@ -139,7 +126,7 @@ if os.path.exists(FONT_REGULAR_PATH) and os.path.getsize(FONT_REGULAR_PATH) > 10
         pdfmetrics.registerFont(TTFont('HebrewFont', FONT_REGULAR_PATH))
         FONT_NAME = 'HebrewFont'
     except Exception:
-        FONT_NAME = 'Helvetica'
+        pass
 
 if os.path.exists(FONT_BOLD_PATH) and os.path.getsize(FONT_BOLD_PATH) > 10000:
     try:
@@ -150,14 +137,12 @@ if os.path.exists(FONT_BOLD_PATH) and os.path.getsize(FONT_BOLD_PATH) > 10000:
 else:
     FONT_BOLD_NAME = FONT_NAME
 
-
 def heb(text):
     if not text:
         return ""
     reshaped_text = arabic_reshaper.reshape(str(text))
     bidi_text = get_display(reshaped_text)
     return bidi_text
-
 
 class NumberedCanvas(canvas.Canvas):
     def __init__(self, *args, **kwargs):
@@ -205,13 +190,13 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
     style_proj_title = ParagraphStyle('ProjTitle', fontName=FONT_BOLD_NAME, fontSize=14, leading=18, textColor=colors.HexColor("#182b49"), alignment=2)
     style_cell_label = ParagraphStyle('CellLabel', fontName=FONT_BOLD_NAME, fontSize=10, leading=14, textColor=colors.HexColor("#0f172a"), alignment=2)
     style_notes_title = ParagraphStyle('NotesTitle', fontName=FONT_BOLD_NAME, fontSize=12, leading=16, textColor=colors.HexColor("#182b49"), alignment=2)
-    style_notes_content = ParagraphStyle('NotesContent', fontName=FONT_BOLD_NAME, fontSize=10, leading=14, textColor=colors.HexColor("#1e293b"), alignment=2)
+    style_notes_content = ParagraphStyle('NotesContent', fontName=FONT_NAME, fontSize=10, leading=14, textColor=colors.HexColor("#1e293b"), alignment=2)
     style_sec_header = ParagraphStyle('SecHeader', fontName=FONT_BOLD_NAME, fontSize=11, leading=14, textColor=colors.HexColor("#0f172a"), alignment=2)
-    style_caption = ParagraphStyle('Caption', fontName=FONT_BOLD_NAME, fontSize=8.5, leading=11, textColor=colors.HexColor("#475569"), alignment=1)
+    style_caption = ParagraphStyle('Caption', fontName=FONT_NAME, fontSize=8.5, leading=11, textColor=colors.HexColor("#475569"), alignment=1)
 
     story = []
 
-    # 1. באנר כותרת ראשית (כולל מספר דו"ח רץ)
+    # 1. באנר כותרת ראשית
     header_data = [
         [Paragraph(heb("ד.ד מהנדסים בע''מ - D.D. ENGINEERS LTD"), style_header_title)],
         [Paragraph(heb(f"דו\"ח פיקוח ואכיפת הסדרי תנועה מס' {report_num}"), style_header_sub)],
@@ -298,7 +283,8 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
                 img = Image.open(f)
                 img = img.convert("RGB")
                 img_temp = io.BytesIO()
-                img.save(img_temp, format="JPEG", quality=80)
+                # שמירה באיכות גבוהה כדי למנוע טשטוש
+                img.save(img_temp, format="JPEG", quality=90)
                 img_temp.seek(0)
 
                 rl_img = RLImage(img_temp, width=8.2 * cm, height=5.5 * cm)
@@ -360,7 +346,6 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# הצגת מספר הדו"ח הנוכחי בממשק
 current_num = get_next_report_number()
 st.info(f"📌 **מספר הדו\"ח המיועד להפקה הבאה:** #{current_num}")
 
@@ -413,20 +398,26 @@ def render_upload_section(label, key_prefix):
                 captions.append(cap)
     return files, captions
 
-col_a, col_b = st.columns(2)
+# --- סדר העלאת התמונות החדש: קודם "לפני" ו-"אחרי" בראש הממשק ---
+col_top1, col_top2 = st.columns(2)
+with col_top1:
+    before_files, before_caps = render_upload_section("1️⃣ תמונות - לפני הסדר (מצב קיים)", "before")
+with col_top2:
+    after_files, after_caps = render_upload_section("2️⃣ תמונות - אחרי הסדר (מצב סופי)", "after")
 
+st.markdown("<hr style='border: 0.5px dashed #cbd5e1; margin: 15px 0;'>", unsafe_allow_html=True)
+st.markdown("##### ➕ תמונות לפי קטגוריות מקצועיות (רשות)")
+
+col_a, col_b = st.columns(2)
 with col_a:
-    before_files, before_caps = render_upload_section("תמונות - לפני הסדר", "before")
     mechanism_files, mechanism_caps = render_upload_section("תמונות - החלפת מנגנון", "mechanism")
     cameras_files, cameras_caps = render_upload_section("תמונות - התקנת מצלמות", "cameras")
+    plan_files, plan_caps = render_upload_section("צילום תוכנית / שרטוט", "plan")
 
 with col_b:
-    after_files, after_caps = render_upload_section("תמונות - אחרי הסדר", "after")
     detectors_files, detectors_caps = render_upload_section("תמונות - חריצת גלאים", "detectors")
     ups_files, ups_caps = render_upload_section("תמונות - התקנת עמדת UPS", "ups")
-
-plan_files, plan_caps = render_upload_section("צילום תוכנית / שרטוט", "plan")
-misc_files, misc_caps = render_upload_section("תמונות - שונות / נספחים", "misc")
+    misc_files, misc_caps = render_upload_section("תמונות - שונות / נספחים", "misc")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
@@ -435,9 +426,9 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
     if not site_name or not junction_name or not inspector_name:
         st.error("⚠️ אנא מלא את שם האתר, שם הצומת ושם המפקח.")
     else:
-        # מקבלים ומעלים את מספר הדו"ח הרץ
         report_num = increment_report_number()
         
+        # סדר הקטגוריות בדו"ח ה-PDF הפיזי
         photo_sections = [
             {"title_he": "מצב קיים בשטח (לפני העבודות)", "files": before_files, "captions": before_caps},
             {"title_he": "הסדר תנועה סופי (אחרי העבודות)", "files": after_files, "captions": after_caps},
