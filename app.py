@@ -1,32 +1,23 @@
 import io
 import os
-import urllib.request
-
-import arabic_reshaper
 import streamlit as st
+import arabic_reshaper
 from bidi.algorithm import get_display
 from PIL import Image
+
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, KeepTogether
+from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.pdfgen import canvas
-from reportlab.platypus import (
-    Image as RLImage,
-    KeepTogether,
-    Paragraph,
-    SimpleDocTemplate,
-    Spacer,
-    Table,
-    TableStyle,
-)
 
 # --- הגדרת תצורת עמוד ב-Streamlit ---
 st.set_page_config(page_title="דו\"ח מפקח הסדר תנועה - ד.ד מהנדסים בע''מ", page_icon="🚦", layout="centered")
 
-# --- ניהול מספר דו"ח רץ (קובץ מקומי) ---
+# --- ניהול מספר דו"ח רץ ---
 COUNTER_FILE = "report_counter.txt"
 START_NUMBER = 100
 
@@ -46,96 +37,36 @@ def increment_report_number():
         f.write(str(next_num))
     return current
 
-# --- עיצוב CSS הנדסי לממשק ---
-st.markdown("""
-    <style>
-    .stApp {
-        background-color: #e2e8f0;
-    }
-    .main-header {
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-        border-right: 6px solid #2563eb;
-        padding: 22px;
-        border-radius: 8px;
-        color: white;
-        text-align: center;
-        margin-bottom: 25px;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
-    }
-    .main-header h1 {
-        color: #ffffff !important;
-        font-size: 26px !important;
-        font-weight: 800 !important;
-        margin-bottom: 6px !important;
-    }
-    .main-header p {
-        color: #cbd5e1 !important;
-        font-size: 15px !important;
-        margin: 0 !important;
-    }
-    .section-title {
-        color: #0f172a;
-        font-size: 18px;
-        font-weight: 800;
-        border-right: 5px solid #2563eb;
-        padding-right: 12px;
-        margin-top: 25px;
-        margin-bottom: 15px;
-    }
-    .stButton>button {
-        background-color: #0f172a !important;
-        color: white !important;
-        font-size: 18px !important;
-        font-weight: bold !important;
-        padding: 14px 28px !important;
-        border-radius: 6px !important;
-        border: none !important;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2) !important;
-    }
-    .stButton>button:hover {
-        background-color: #2563eb !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-# --- פונקציית הורדה וטעינה מאובטחת של גופנים עבריים נקיים ---
-FONT_REGULAR_PATH = "NotoSansHebrew-Regular.ttf"
-FONT_BOLD_PATH = "NotoSansHebrew-Bold.ttf"
-
-def download_file(url, dest_path):
-    if os.path.exists(dest_path) and os.path.getsize(dest_path) > 10000:
-        return True
-    try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=12) as response, open(dest_path, 'wb') as out_file:
-            out_file.write(response.read())
-        return os.path.exists(dest_path) and os.path.getsize(dest_path) > 10000
-    except Exception:
-        return False
-
-# גופני Noto Sans Hebrew לקבלת עברית חדשה ונקייה
-download_file("https://github.com/google/fonts/raw/main/ofl/notosanshebrew/static/NotoSansHebrew-Regular.ttf", FONT_REGULAR_PATH)
-download_file("https://github.com/google/fonts/raw/main/ofl/notosanshebrew/static/NotoSansHebrew-Bold.ttf", FONT_BOLD_PATH)
-
+# --- טעינת גופן עברי מערכתי בטוח (Arial/David) למניעת ריבועים שחורים ---
 FONT_NAME = 'Helvetica'
 FONT_BOLD_NAME = 'Helvetica-Bold'
 
-if os.path.exists(FONT_REGULAR_PATH) and os.path.getsize(FONT_REGULAR_PATH) > 10000:
-    try:
-        pdfmetrics.registerFont(TTFont('HebrewFont', FONT_REGULAR_PATH))
-        FONT_NAME = 'HebrewFont'
-    except Exception:
-        pass
+def setup_hebrew_fonts():
+    global FONT_NAME, FONT_BOLD_NAME
+    # רשימת נתיבים פוטנציאליים לגופנים עבריים ב-Windows/Linux
+    possible_fonts = [
+        ("C:/Windows/Fonts/arial.ttf", "C:/Windows/Fonts/arialbd.ttf"),
+        ("C:/Windows/Fonts/calibri.ttf", "C:/Windows/Fonts/calibrib.ttf"),
+        ("C:/Windows/Fonts/david.ttf", "C:/Windows/Fonts/davidbd.ttf"),
+        ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
+    ]
+    
+    for reg_path, bold_path in possible_fonts:
+        if os.path.exists(reg_path):
+            try:
+                pdfmetrics.registerFont(TTFont('SystemHebrew', reg_path))
+                FONT_NAME = 'SystemHebrew'
+                if os.path.exists(bold_path):
+                    pdfmetrics.registerFont(TTFont('SystemHebrew-Bold', bold_path))
+                    FONT_BOLD_NAME = 'SystemHebrew-Bold'
+                else:
+                    FONT_BOLD_NAME = 'SystemHebrew'
+                return True
+            except Exception:
+                continue
+    return False
 
-if os.path.exists(FONT_BOLD_PATH) and os.path.getsize(FONT_BOLD_PATH) > 10000:
-    try:
-        pdfmetrics.registerFont(TTFont('HebrewFont-Bold', FONT_BOLD_PATH))
-        FONT_BOLD_NAME = 'HebrewFont-Bold'
-    except Exception:
-        FONT_BOLD_NAME = FONT_NAME
-else:
-    FONT_BOLD_NAME = FONT_NAME
+setup_hebrew_fonts()
 
 def heb(text):
     if not text:
@@ -168,7 +99,6 @@ class NumberedCanvas(canvas.Canvas):
         footer_text = heb(f"כל הזכויות שמורות לנתנאל עוז הררי © | נייד: 054-5520445 | ד.ד מהנדסים בע''מ | עמוד {self._pageNumber} מתוך {page_count}")
         self.drawCentredString(A4[0] / 2.0, 1 * cm, footer_text)
         self.restoreState()
-
 
 def generate_pdf(report_num, site_title, junction_name, inspector, license_no, permit_no, date_str, work_type, notes, photo_sections):
     buffer = io.BytesIO()
@@ -283,7 +213,6 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
                 img = Image.open(f)
                 img = img.convert("RGB")
                 img_temp = io.BytesIO()
-                # שמירה באיכות גבוהה כדי למנוע טשטוש
                 img.save(img_temp, format="JPEG", quality=90)
                 img_temp.seek(0)
 
@@ -340,6 +269,27 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
 # --- ממשק המשתמש (Streamlit UI) ---
 
 st.markdown("""
+    <style>
+    .stApp { background-color: #e2e8f0; }
+    .main-header {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        border-right: 6px solid #2563eb;
+        padding: 22px;
+        border-radius: 8px;
+        color: white;
+        text-align: center;
+        margin-bottom: 25px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+    }
+    .main-header h1 { color: #ffffff !important; font-size: 26px !important; font-weight: 800 !important; margin-bottom: 6px !important; }
+    .main-header p { color: #cbd5e1 !important; font-size: 15px !important; margin: 0 !important; }
+    .section-title { color: #0f172a; font-size: 18px; font-weight: 800; border-right: 5px solid #2563eb; padding-right: 12px; margin-top: 25px; margin-bottom: 15px; }
+    .stButton>button { background-color: #0f172a !important; color: white !important; font-size: 18px !important; font-weight: bold !important; padding: 14px 28px !important; border-radius: 6px !important; border: none !important; }
+    .stButton>button:hover { background-color: #2563eb !important; }
+    </style>
+""", unsafe_allow_html=True)
+
+st.markdown("""
     <div class="main-header">
         <h1>🚦 ד.ד מהנדסים בע''מ</h1>
         <p>מערכת מקצועית להפקת דו"חות פיקוח הסדרי תנועה</p>
@@ -363,18 +313,9 @@ with col2:
     date_val = st.date_input("תאריך הבדיקה")
     
     work_type_options = [
-        "הסדר תנועה זמני",
-        "הקמת צומת",
-        "הקמת צומת חדשה",
-        "החלפת מנגנון",
-        "חריצת גלאים",
-        "התקנת מצלמות",
-        "התקנת עמדת UPS",
-        "אישור הסטת נתיבים",
-        "בדיקת שילוט",
-        "תחזוקת רמזורים",
-        "ביקורת תקופתית",
-        "אחר"
+        "הסדר תנועה זמני", "הקמת צומת", "הקמת צומת חדשה", "החלפת מנגנון",
+        "חריצת גלאים", "התקנת מצלמות", "התקנת עמדת UPS", "אישור הסטת נתיבים",
+        "בדיקת שילוט", "תחזוקת רמזורים", "ביקורת תקופתית", "אחר"
     ]
     selected_work_type = st.selectbox("סוג הפעילות / העבודה", work_type_options)
     
@@ -398,7 +339,7 @@ def render_upload_section(label, key_prefix):
                 captions.append(cap)
     return files, captions
 
-# --- סדר העלאת התמונות החדש: קודם "לפני" ו-"אחרי" בראש הממשק ---
+# סדר העלאה: לפני ואחרי בראש הדף
 col_top1, col_top2 = st.columns(2)
 with col_top1:
     before_files, before_caps = render_upload_section("1️⃣ תמונות - לפני הסדר (מצב קיים)", "before")
@@ -421,14 +362,12 @@ with col_b:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# יצירת ה-PDF
 if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
     if not site_name or not junction_name or not inspector_name:
         st.error("⚠️ אנא מלא את שם האתר, שם הצומת ושם המפקח.")
     else:
         report_num = increment_report_number()
         
-        # סדר הקטגוריות בדו"ח ה-PDF הפיזי
         photo_sections = [
             {"title_he": "מצב קיים בשטח (לפני העבודות)", "files": before_files, "captions": before_caps},
             {"title_he": "הסדר תנועה סופי (אחרי העבודות)", "files": after_files, "captions": after_caps},
