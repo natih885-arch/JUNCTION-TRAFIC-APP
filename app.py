@@ -5,7 +5,8 @@ import streamlit as st
 import arabic_reshaper
 from bidi.algorithm import get_display
 from PIL import Image
-
+import gspread
+from google.oauth2.service_account import Credentials
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
@@ -30,7 +31,36 @@ def get_next_report_number():
             return int(f.read().strip())
     except Exception:
         return START_NUMBER
+def append_to_google_sheets(report_num, date_str, site_title, junction_name, inspector, license_no, permit_no, work_type, notes):
+    try:
+        scope = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
 
+        creds_dict = st.secrets["gcp_service_account"]
+        credentials = Credentials.from_service_account_info(creds_dict, scopes=scope)
+        client = gspread.authorize(credentials)
+
+        sheet_url = st.secrets["sheets"]["spreadsheet_url"]
+        sheet = client.open_by_url(sheet_url).sheet1
+
+        new_row = [
+            report_num,
+            date_str,
+            site_title,
+            junction_name,
+            inspector,
+            license_no,
+            permit_no,
+            work_type,
+            notes
+        ]
+        sheet.append_row(new_row)
+        return True
+    except Exception as e:
+        st.error(f"שגיאה בשמירה ל-Google Sheets: {e}")
+        return False
 def increment_report_number():
     current = get_next_report_number()
     next_num = current + 1
@@ -379,7 +409,20 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
         st.error("⚠️ אנא מלא את שם האתר, שם הצומת ושם המפקח.")
     else:
         report_num = increment_report_number()
-        
+     # שמירת הנתונים ב-Google Sheets
+    success = append_to_google_sheets(
+        report_num=report_num,
+        date_str=str(date_val),
+        site_title=site_name,
+        junction_name=junction_name,
+        inspector=inspector_name,
+        license_no=license_no,
+        permit_no=permit_no,
+        work_type=final_work_type,
+        notes=notes
+    )
+    if success:
+        st.success("הנתונים נשמרו בהצלחה ב-Google Sheets!")   
         photo_sections = [
             {"title_he": "מצב קיים בשטח (לפני העבודות)", "files": before_files, "captions": before_caps},
             {"title_he": "הסדר תנועה סופי (אחרי העבודות)", "files": after_files, "captions": after_caps},
