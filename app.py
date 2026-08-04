@@ -67,7 +67,9 @@ def append_to_google_sheets(report_num, date_str, site_title, junction_name, ins
         sheet.append_row(new_row)
         return True
     except Exception as e:
+        import traceback
         st.error(f"שגיאה בשמירה ל-Google Sheets: {str(e)}")
+        st.code(traceback.format_exc())
         return False
 
 # --- הורדת גופן עברי מקומית והגדרתו עבור ReportLab ---
