@@ -31,43 +31,42 @@ def get_next_report_number():
             return int(f.read().strip())
     except Exception:
         return START_NUMBER
-def append_to_google_sheets(report_num, date_str, site_title, junction_name, inspector, license_no, permit_no, work_type, notes):
-    try:
-        scope = [
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive"
-        ]
-
-        creds_dict = st.secrets["gcp_service_account"]
-        credentials = Credentials.from_service_account_info(creds_dict, scopes=scope)
-        client = gspread.authorize(credentials)
-
-        sheet_url = st.secrets["sheets"]["spreadsheet_url"]
-        sheet = client.open_by_url(sheet_url).sheet1
-
-        new_row = [
-            report_num,
-            date_str,
-            site_title,
-            junction_name,
-            inspector,
-            license_no,
-            permit_no,
-            work_type,
-            notes
-        ]
-        sheet.append_row(new_row)
-        return True
-    except Exception as e:
-        st.error(f"שגיאה בשמירה ל-Google Sheets: {e}")
-        return False
 def increment_report_number():
     current = get_next_report_number()
     next_num = current + 1
     with open(COUNTER_FILE, "w") as f:
         f.write(str(next_num))
     return current
-
+def append_to_google_sheets(report_num, date_str, site_title, junction_name, inspector, license_no, permit_no, work_type, notes):
+    try:
+        scope = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
+        
+        creds_dict = dict(st.secrets["gcp_service_account"])
+        credentials = Credentials.from_service_account_info(creds_dict, scopes=scope)
+        client = gspread.authorize(credentials)
+        
+        sheet_url = st.secrets["sheets"]["spreadsheet_url"]
+        sheet = client.open_by_url(sheet_url).sheet1
+        
+        new_row = [
+            str(report_num),
+            str(date_str),
+            str(site_title),
+            str(junction_name),
+            str(inspector),
+            str(license_no),
+            str(permit_no),
+            str(work_type),
+            str(notes)
+        ]
+        sheet.append_row(new_row)
+        return True
+    except Exception as e:
+        st.error(f"שגיאה בשמירה ל-Google Sheets: {str(e)}")
+        return False
 # --- הורדת גופן עברי מקומית והגדרתו עבור ReportLab ---
 FONT_NAME = 'HebrewFont'
 FONT_BOLD_NAME = 'HebrewFont-Bold'
