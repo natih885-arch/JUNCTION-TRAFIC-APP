@@ -1,5 +1,7 @@
 streamlit
 reportlab
+arabic_reshaper
 python-bidi
-arabic-reshaper
 Pillow
+gspread
+google-auth
