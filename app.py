@@ -31,12 +31,14 @@ def get_next_report_number():
             return int(f.read().strip())
     except Exception:
         return START_NUMBER
+
 def increment_report_number():
     current = get_next_report_number()
     next_num = current + 1
     with open(COUNTER_FILE, "w") as f:
         f.write(str(next_num))
     return current
+
 def append_to_google_sheets(report_num, date_str, site_title, junction_name, inspector, license_no, permit_no, work_type, notes):
     try:
         scope = [
@@ -67,6 +69,7 @@ def append_to_google_sheets(report_num, date_str, site_title, junction_name, ins
     except Exception as e:
         st.error(f"שגיאה בשמירה ל-Google Sheets: {str(e)}")
         return False
+
 # --- הורדת גופן עברי מקומית והגדרתו עבור ReportLab ---
 FONT_NAME = 'HebrewFont'
 FONT_BOLD_NAME = 'HebrewFont-Bold'
@@ -75,17 +78,15 @@ def setup_hebrew_fonts():
     font_reg_path = "Rubik-Regular.ttf"
     font_bold_path = "Rubik-Bold.ttf"
 
-    # קישורים ישירים ויציבים לגופנים משרתי Google Fonts ב-GitHub
     url_reg = "https://raw.githubusercontent.com/google/fonts/main/ofl/rubik/Rubik%5Bwght%5D.ttf"
     url_bold = "https://raw.githubusercontent.com/google/fonts/main/ofl/rubik/Rubik-Bold.ttf"
 
-    # הורדה במידה ולא קיימים מקומית
     if not os.path.exists(font_reg_path):
         try:
             req = urllib.request.Request(url_reg, headers={'User-Agent': 'Mozilla/5.0'})
             with urllib.request.urlopen(req) as response, open(font_reg_path, 'wb') as out_file:
                 out_file.write(response.read())
-        except Exception as e:
+        except Exception:
             pass
 
     if not os.path.exists(font_bold_path):
@@ -93,10 +94,9 @@ def setup_hebrew_fonts():
             req = urllib.request.Request(url_bold, headers={'User-Agent': 'Mozilla/5.0'})
             with urllib.request.urlopen(req) as response, open(font_bold_path, 'wb') as out_file:
                 out_file.write(response.read())
-        except Exception as e:
+        except Exception:
             pass
 
-    # רישום הגופנים במידה והורדו בהצלחה
     try:
         if os.path.exists(font_reg_path):
             pdfmetrics.registerFont(TTFont(FONT_NAME, font_reg_path))
@@ -104,7 +104,7 @@ def setup_hebrew_fonts():
             pdfmetrics.registerFont(TTFont(FONT_BOLD_NAME, font_bold_path))
         else:
             pdfmetrics.registerFont(TTFont(FONT_BOLD_NAME, font_reg_path))
-    except Exception as e:
+    except Exception:
         pass
 
 setup_hebrew_fonts()
@@ -380,7 +380,6 @@ def render_upload_section(label, key_prefix):
                 captions.append(cap)
     return files, captions
 
-# סדר העלאה: לפני ואחרי בראש הדף
 col_top1, col_top2 = st.columns(2)
 with col_top1:
     before_files, before_caps = render_upload_section("1️⃣ תמונות - לפני הסדר (מצב קיים)", "before")
@@ -408,20 +407,22 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
         st.error("⚠️ אנא מלא את שם האתר, שם הצומת ושם המפקח.")
     else:
         report_num = increment_report_number()
-     # שמירת הנתונים ב-Google Sheets
-    success = append_to_google_sheets(
-        report_num=report_num,
-        date_str=str(date_val),
-        site_title=site_name,
-        junction_name=junction_name,
-        inspector=inspector_name,
-        license_no=license_no,
-        permit_no=permit_no,
-        work_type=final_work_type,
-        notes=notes
-    )
-    if success:
-        st.success("הנתונים נשמרו בהצלחה ב-Google Sheets!")   
+        
+        # שמירת הנתונים ב-Google Sheets
+        success = append_to_google_sheets(
+            report_num=report_num,
+            date_str=str(date_val),
+            site_title=site_name,
+            junction_name=junction_name,
+            inspector=inspector_name,
+            license_no=license_no,
+            permit_no=permit_no,
+            work_type=final_work_type,
+            notes=notes
+        )
+        if success:
+            st.success("הנתונים נשמרו בהצלחה ב-Google Sheets!")   
+            
         photo_sections = [
             {"title_he": "מצב קיים בשטח (לפני העבודות)", "files": before_files, "captions": before_caps},
             {"title_he": "הסדר תנועה סופי (אחרי העבודות)", "files": after_files, "captions": after_caps},
