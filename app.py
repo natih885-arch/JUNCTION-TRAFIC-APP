@@ -37,14 +37,15 @@ def get_worksheet():
     sheet_url = st.secrets["sheets"]["spreadsheet_url"]
     return client.open_by_url(sheet_url).sheet1
 
-# --- ניהול מספר דו"ח רץ בזמן אמת מ-Google Sheets ---
+# --- ניהול מספר דו"ח רץ בזמן אמת מ-Google Sheets (מעמודה O / עמודה 15) ---
 def get_next_report_number():
     try:
         sheet = get_worksheet()
-        col_values = sheet.col_values(1)  # עמודה A (מספר דו"ח)
+        # שליפת נתונים מעמודה 15 (עמודה O בגיליון)
+        col_values = sheet.col_values(15) 
         
         numeric_ids = []
-        for val in col_values[1:]:  # דילוג על השורה הראשונה (כותרת)
+        for val in col_values[1:]:  # דילוג על הכותרת
             val_str = str(val).strip()
             if val_str.isdigit():
                 numeric_ids.append(int(val_str))
@@ -56,21 +57,26 @@ def get_next_report_number():
         st.warning(f"לא ניתן לשלוף מס' דו\"ח מ-Google Sheets, משתמש במספר ברירת מחדל: {e}")
         return START_NUMBER
 
+# --- הוספת שורה המתחילה מעמודה O ---
 def append_to_google_sheets(report_num, date_str, site_title, junction_name, inspector, license_no, permit_no, work_type, notes):
     try:
         sheet = get_worksheet()
-        new_row = [
-            str(report_num),
-            str(date_str),
-            str(site_title),
-            str(junction_name),
-            str(inspector),
-            str(license_no),
-            str(permit_no),
-            str(work_type),
-            str(notes)
+        
+        # 14 תאים ריקים כדי להתחיל לכתוב מעמודה O (עמודה 15)
+        empty_padding = [""] * 14
+        
+        row_data = empty_padding + [
+            str(report_num),   # עמודה O - מס' דו"ח
+            str(date_str),     # עמודה P - תאריך
+            str(site_title),   # עמודה Q - שם אתר / פרויקט
+            str(junction_name),# עמודה R - מיקום / צומת
+            str(inspector),    # עמודה S - מפקח
+            str(license_no),   # עמודה T - רישיון
+            str(permit_no),    # עמודה U - היתר
+            str(work_type),    # עמודה V - סוג עבודה
+            str(notes)         # עמודה W - הערות
         ]
-        sheet.append_row(new_row)
+        sheet.append_row(row_data)
         return True
     except Exception as e:
         st.error(f"שגיאה בשמירה ל-Google Sheets: {str(e)}")
@@ -258,7 +264,6 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
         photo_cells = []
         for i, f in enumerate(files):
             try:
-                # קריאת התמונה בצורה בטוחה מזיכרון
                 f.seek(0)
                 img = Image.open(f)
                 img = ImageOps.exif_transpose(img)
