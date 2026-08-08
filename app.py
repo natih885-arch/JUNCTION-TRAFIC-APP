@@ -35,7 +35,7 @@ def get_worksheet():
     sheet_url = st.secrets["sheets"]["spreadsheet_url"]
     return client.open_by_url(sheet_url).sheet1
 
-# --- שליפת מספר דו"ח אמינה המבוססת אך ורק על עמודה A ---
+# --- שליפת מספר דו"ח אמינה המבוססת על מקסימום ערכי עמודה A ---
 def get_next_report_number():
     try:
         sheet = get_worksheet()
@@ -44,14 +44,17 @@ def get_next_report_number():
         numbers = []
         for val in col_a_values:
             val_str = str(val).strip()
+            if not val_str:
+                continue
             try:
-                # מטפל גם במקרים שבהם גוגל שיטס שומר את המספר כעשרוני (למשל "100.0")
-                numbers.append(int(float(val_str)))
+                # מטפל גם במספרים שלמים וגם במקרים ששיטס שומר כעשרוני (למשל "109.0")
+                num = int(float(val_str))
+                numbers.append(num)
             except (ValueError, TypeError):
                 continue
 
         if numbers:
-            return max(max(numbers) + 1, 100)
+            return max(numbers) + 1
             
         return 100
     except Exception as e:
@@ -90,7 +93,6 @@ def setup_hebrew_fonts():
     font_reg_path = "Rubik-Regular.ttf"
     font_bold_path = "Rubik-Bold.ttf"
 
-    # הקישורים המעודכנים והתקינים להורדת הגופנים
     url_reg = "https://github.com/google/fonts/raw/main/ofl/rubik/Rubik%5Bwght%5D.ttf"
     url_bold = "https://github.com/google/fonts/raw/main/ofl/rubik/static/Rubik-Bold.ttf"
 
@@ -117,7 +119,6 @@ def setup_hebrew_fonts():
         if os.path.exists(font_bold_path):
             pdfmetrics.registerFont(TTFont(FONT_BOLD_NAME, font_bold_path))
         elif os.path.exists(font_reg_path):
-            # מנגנון גיבוי: במידה וההורדה של המודגש נכשלה, משתמש בגופן הרגיל
             pdfmetrics.registerFont(TTFont(FONT_BOLD_NAME, font_reg_path))
     except Exception as e:
         st.error(f"שגיאה בטעינת גופנים למערכת PDF: {e}")
@@ -451,8 +452,6 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
             )
             
             if success:
-                st.success("הנתונים נשמרו בהצלחה ב-Google Sheets!")    
-                
                 photo_sections = [
                     {"title_he": "מצב קיים בשטח (לפני העבודות)", "files": before_files, "captions": before_caps},
                     {"title_he": "הסדר תנועה סופי (אחרי העבודות)", "files": after_files, "captions": after_caps},
