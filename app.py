@@ -1,6 +1,5 @@
 import io
 import os
-import time
 import urllib.request
 import traceback
 import streamlit as st
@@ -36,19 +35,20 @@ def get_worksheet():
     sheet_url = st.secrets["sheets"]["spreadsheet_url"]
     return client.open_by_url(sheet_url).sheet1
 
-# --- ניהול מספר דו"ח רץ בזמן אמת מ-Google Sheets (מעמודה O / עמודה 15) ---
+# --- ניהול מספר דו"ח רץ בזמן אמת מ-Google Sheets (עמודה O / אינדקס 14 בערכים) ---
 def get_next_report_number():
     try:
         sheet = get_worksheet()
-        # שליפת כל הנתונים מעמודה 15 (עמודה O) ללא מטמון
-        col_values = sheet.col_values(15) 
+        all_rows = sheet.get_all_values()
         
         numeric_ids = []
-        for val in col_values:
-            val_str = str(val).strip()
-            clean_val = "".join(c for c in val_str if c.isdigit())
-            if clean_val:
-                numeric_ids.append(int(clean_val))
+        for row in all_rows:
+            # בדיקה אם יש ערך בעמודה 15 (אינדקס 14) - עמודה O
+            if len(row) >= 15:
+                val_str = str(row[14]).strip()
+                clean_val = "".join(c for c in val_str if c.isdigit())
+                if clean_val:
+                    numeric_ids.append(int(clean_val))
                 
         if numeric_ids:
             max_id = max(numeric_ids)
@@ -356,11 +356,8 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# שליפת מספר רץ עדכני
-if "last_report_num" not in st.session_state:
-    st.session_state["last_report_num"] = get_next_report_number()
-
-current_num = st.session_state["last_report_num"]
+# שליפת המספר הבא בלייב מתוך Google Sheets בכל טעינה
+current_num = get_next_report_number()
 st.info(f"📌 **מספר הדו\"ח המיועד להפקה הבאה:** #{current_num}")
 
 st.markdown('<div class="section-title">📋 פרטי האתר והמפקח</div>', unsafe_allow_html=True)
@@ -429,8 +426,8 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
     if not site_name or not junction_name or not inspector_name:
         st.error("⚠️ אנא מלא את שם האתר, שם הצומת ושם המפקח.")
     else:
-        # שליפת המספר המעודכן ביותר ישירות בעת הלחיצה
-        report_num = get_next_report_number()
+        # שליפה טרייה של המספר המיועד
+        report_num = current_num
         
         success = append_to_google_sheets(
             report_num=report_num,
@@ -472,13 +469,9 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
                         photo_sections=photo_sections
                     )
                     
-                    # עדכון ה-Session State כדי שמיד בטעינה הבאה יוצג המספר הבא בטור
-                    st.session_state["last_report_num"] = report_num + 1
                     st.session_state['pdf_bytes'] = pdf_bytes
                     st.session_state['pdf_filename'] = f"DD_Engineers_Report_{report_num}_{date_val}.pdf"
                     st.success(f"✅ דו\"ח מס' {report_num} הופק בהצלחה!")
-                    
-                    time.sleep(1)
                     st.rerun()
                 except Exception as e:
                     st.error(f"שגיאה בהפקת ה-PDF: {e}")
