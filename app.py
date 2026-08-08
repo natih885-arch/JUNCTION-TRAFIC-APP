@@ -197,7 +197,7 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
     story.append(Paragraph(heb(f"שם האתר / פרויקט: {site_title}"), style_proj_title))
     story.append(Spacer(1, 0.2 * cm))
 
-    # 3. טבלת פרטים
+    # 3. טבלת פרטים (סדר העמודות מותאם מימין לשמאל ב-ReportLab)
     insp_str = f"מפקח: {inspector}"
     if license_no and license_no.strip():
         insp_str += f" (רישיון: {license_no.strip()})"
@@ -207,8 +207,8 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
         work_type_str += f" | היתר: {permit_no.strip()}"
 
     info_data = [
-        [Paragraph(heb(insp_str), style_cell_label), Paragraph(heb(f"צומת / מיקום: {junction_name}"), style_cell_label)],
-        [Paragraph(heb(work_type_str), style_cell_label), Paragraph(heb(f"תאריך: {date_str}"), style_cell_label)]
+        [Paragraph(heb(f"צומת / מיקום: {junction_name}"), style_cell_label), Paragraph(heb(insp_str), style_cell_label)],
+        [Paragraph(heb(f"תאריך: {date_str}"), style_cell_label), Paragraph(heb(work_type_str), style_cell_label)]
     ]
     info_table = Table(info_data, colWidths=[9 * cm, 9 * cm])
     info_table.setStyle(TableStyle([
@@ -262,7 +262,9 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
             try:
                 img = Image.open(f)
                 img = ImageOps.exif_transpose(img)  # תיקון סיבוב תמונה לפי EXIF
-                img = img.convert("RGB")
+                
+                if img.mode != "RGB":
+                    img = img.convert("RGB")
                 
                 img_temp = io.BytesIO()
                 img.save(img_temp, format="JPEG", quality=85)
@@ -281,6 +283,7 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
         grid_rows = []
         for i in range(0, len(photo_cells), 2):
             if i + 1 < len(photo_cells):
+                # בעברית (RTL) התמונה הראשונה תהיה מימין (עמודה אינדקס 1 במערך של 2 עמודות)
                 grid_rows.append([photo_cells[i+1], photo_cells[i]])
             else:
                 grid_rows.append(["", photo_cells[i]])
@@ -303,8 +306,8 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
         sig_text += f" | היתר עבודה: {permit_no.strip()}"
 
     sig_data = [
-        [Paragraph(heb(f"תאריך: {date_str}"), style_cell_label), Paragraph(heb(sig_text), style_cell_label)],
-        ["", Paragraph(heb("חתימת המפקח: _______________________"), style_cell_label)]
+        [Paragraph(heb(sig_text), style_cell_label), Paragraph(heb(f"תאריך: {date_str}"), style_cell_label)],
+        [Paragraph(heb("חתימת המפקח: _______________________"), style_cell_label), ""]
     ]
     sig_table = Table(sig_data, colWidths=[9 * cm, 9 * cm])
     sig_table.setStyle(TableStyle([
