@@ -4,7 +4,7 @@ import urllib.request
 import streamlit as st
 import arabic_reshaper
 from bidi.algorithm import get_display
-from PIL import Image
+from PIL import Image, ImageOps
 import gspread
 from google.oauth2.service_account import Credentials
 from reportlab.lib import colors
@@ -36,7 +36,7 @@ def get_worksheet():
     sheet_url = st.secrets["sheets"]["spreadsheet_url"]
     return client.open_by_url(sheet_url).sheet1
 
-# --- ניהול מספר דו"ח רץ בזמן אמת מ מ-Google Sheets ---
+# --- ניהול מספר דו"ח רץ בזמן אמת מ-Google Sheets ---
 def get_next_report_number():
     """שולף בזמן אמת את המספר המקסימלי הקיים בטור A ומחזיר את המספר הבא"""
     try:
@@ -79,7 +79,7 @@ def append_to_google_sheets(report_num, date_str, site_title, junction_name, ins
         st.code(traceback.format_exc())
         return False
 
-# --- הורדת גופן עברי מקומית והגדרתו עבור ReportLab ---
+# --- הגדרת גופנים בעברית עבור ReportLab ---
 FONT_NAME = 'HebrewFont'
 FONT_BOLD_NAME = 'HebrewFont-Bold'
 
@@ -113,8 +113,8 @@ def setup_hebrew_fonts():
             pdfmetrics.registerFont(TTFont(FONT_BOLD_NAME, font_bold_path))
         else:
             pdfmetrics.registerFont(TTFont(FONT_BOLD_NAME, font_reg_path))
-    except Exception:
-        pass
+    except Exception as e:
+        st.error(f"שגיאה בטעינת גופנים: {e}")
 
 setup_hebrew_fonts()
 
@@ -261,9 +261,11 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
         for i, f in enumerate(files):
             try:
                 img = Image.open(f)
+                img = ImageOps.exif_transpose(img)  # תיקון סיבוב תמונה לפי EXIF
                 img = img.convert("RGB")
+                
                 img_temp = io.BytesIO()
-                img.save(img_temp, format="JPEG", quality=90)
+                img.save(img_temp, format="JPEG", quality=85)
                 img_temp.seek(0)
 
                 rl_img = RLImage(img_temp, width=8.2 * cm, height=5.5 * cm)
@@ -416,7 +418,7 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
     if not site_name or not junction_name or not inspector_name:
         st.error("⚠️ אנא מלא את שם האתר, שם הצומת ושם המפקח.")
     else:
-        # שליפת מספר הדו"ח העדכני ביותר בדיוק בזמן הלחיצה
+        # שליפת מספר הדו"ח העדכני ביותר בזמן בלחיצה
         report_num = get_next_report_number()
         
         # שמירת הנתונים ב-Google Sheets
@@ -432,7 +434,7 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
             notes=notes
         )
         if success:
-            st.success("הנתונים נשמרו בהצלחה ב-Google Sheets!")   
+            st.success("הנתונים נשמרו בהצלחה ב-Google Sheets!")    
             
             photo_sections = [
                 {"title_he": "מצב קיים בשטח (לפני העבודות)", "files": before_files, "captions": before_caps},
@@ -463,9 +465,6 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
                     st.session_state['pdf_bytes'] = pdf_bytes
                     st.session_state['pdf_filename'] = f"DD_Engineers_Report_{report_num}_{date_val}.pdf"
                     st.success(f"✅ דו\"ח מס' {report_num} הופק בהצלחה!")
-                    
-                    # רענון המספר במסך לאחר ההפקה המוצלחת
-                    st.rerun()
                 except Exception as e:
                     st.error(f"שגיאה בהפקת ה-PDF: {e}")
 
