@@ -20,7 +20,8 @@ from reportlab.pdfbase.ttfonts import TTFont
 # --- הגדרת תצורת עמוד ב-Streamlit ---
 st.set_page_config(page_title="דו\"ח מפקח הסדר תנועה - ד.ד מהנדסים בע''מ", page_icon="🚦", layout="centered")
 
-START_NUMBER = 100
+# הגדרת מספר התחלתי במידה והגיליון ריק לחלוטין (מאחר ו-110 כבר בגיליון, נרצה להתחיל מ-110 כדי הדו"ח הבא יהיה 111)
+START_NUMBER = 110
 
 # --- חיבור ל-Google Sheets ---
 def get_gspread_client():
@@ -52,29 +53,30 @@ def get_next_report_number():
                 
         if numeric_ids:
             return max(numeric_ids) + 1
-        return START_NUMBER
+        return START_NUMBER + 1
     except Exception as e:
         st.warning(f"לא ניתן לשלוף מס' דו\"ח מ-Google Sheets, משתמש במספר ברירת מחדל: {e}")
-        return START_NUMBER
+        return START_NUMBER + 1
 
-# --- הוספת שורה המתחילה מעמודה O ---
+# --- הוספת שורה המתחילה במדויק מעמודה O (עמודה 15) ---
 def append_to_google_sheets(report_num, date_str, site_title, junction_name, inspector, license_no, permit_no, work_type, notes):
     try:
         sheet = get_worksheet()
         
-        # 14 תאים ריקים כדי להתחיל לכתוב מעמודה O (עמודה 15)
+        # כדי להתחיל לכתוב בעמודה O (עמודה 15), צריך בדיוק 14 תאים ריקים בלבד!
+        # (תא 1 עד 14 ריקים, תא 15 הוא עמודה O)
         empty_padding = [""] * 14
         
         row_data = empty_padding + [
-            str(report_num),   # עמודה O - מס' דו"ח
-            str(date_str),     # עמודה P - תאריך
-            str(site_title),   # עמודה Q - שם אתר / פרויקט
-            str(junction_name),# עמודה R - מיקום / צומת
-            str(inspector),    # עמודה S - מפקח
-            str(license_no),   # עמודה T - רישיון
-            str(permit_no),    # עמודה U - היתר
-            str(work_type),    # עמודה V - סוג עבודה
-            str(notes)         # עמודה W - הערות
+            str(report_num),   # עמודה O (15) - מס' דו"ח
+            str(date_str),     # עמודה P (16) - תאריך
+            str(site_title),   # עמודה Q (17) - שם אתר / פרויקט
+            str(junction_name),# עמודה R (18) - מיקום / צומת
+            str(inspector),    # עמודה S (19) - מפקח
+            str(license_no),   # עמודה T (20) - רישיון
+            str(permit_no),    # עמודה U (21) - היתר
+            str(work_type),    # עמודה V (22) - סוג עבודה
+            str(notes)         # עמודה W (23) - הערות
         ]
         sheet.append_row(row_data)
         return True
@@ -469,6 +471,7 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
                     st.session_state['pdf_bytes'] = pdf_bytes
                     st.session_state['pdf_filename'] = f"DD_Engineers_Report_{report_num}_{date_val}.pdf"
                     st.success(f"✅ דו\"ח מס' {report_num} הופק בהצלחה!")
+                    st.rerun()  # מרענן את המסך כדי להעלות מיד את מספר הדו"ח הבא
                 except Exception as e:
                     st.error(f"שגיאה בהפקת ה-PDF: {e}")
 
