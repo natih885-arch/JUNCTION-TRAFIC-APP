@@ -44,9 +44,12 @@ def get_next_report_number():
         numbers = []
         for val in col_a_values:
             val_str = str(val).strip()
-            if val_str.isdigit():
-                numbers.append(int(val_str))
-                
+            try:
+                # מטפל גם במקרים שבהם גוגל שיטס שומר את המספר כעשרוני (למשל "100.0")
+                numbers.append(int(float(val_str)))
+            except (ValueError, TypeError):
+                continue
+
         if numbers:
             return max(max(numbers) + 1, 100)
             
@@ -354,6 +357,18 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
+# --- הצגת מספר הדו"ח הבא שיופק ---
+if 'next_report_preview' not in st.session_state:
+    st.session_state['next_report_preview'] = get_next_report_number()
+
+col_num1, col_num2 = st.columns([4, 1])
+with col_num1:
+    st.info(f"📄 מספר הדו\"ח הבא שיופק: **{st.session_state['next_report_preview']}**")
+with col_num2:
+    if st.button("🔄 רענן מספר", use_container_width=True):
+        st.session_state['next_report_preview'] = get_next_report_number()
+        st.rerun()
+
 st.markdown('<div class="section-title">📋 פרטי האתר והמפקח</div>', unsafe_allow_html=True)
 
 col1, col2 = st.columns(2)
@@ -465,6 +480,7 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
                     
                     st.session_state['pdf_bytes'] = pdf_bytes
                     st.session_state['pdf_filename'] = f"DD_Engineers_Report_{report_num}_{date_val}.pdf"
+                    st.session_state['next_report_preview'] = report_num + 1
                     st.success(f"✅ דו\"ח מס' {report_num} הופק בהצלחה!")
                     st.rerun()
                 except Exception as e:
