@@ -19,39 +19,46 @@ from reportlab.pdfbase.ttfonts import TTFont
 # --- הגדרת תצורת עמוד ב-Streamlit ---
 st.set_page_config(page_title="דו\"ח מפקח הסדר תנועה - ד.ד מהנדסים בע''מ", page_icon="🚦", layout="centered")
 
-# --- ניהול מספר דו"ח רץ ---
-COUNTER_FILE = "report_counter.txt"
 START_NUMBER = 100
 
-def get_next_report_number():
-    if not os.path.exists(COUNTER_FILE):
-        return START_NUMBER
-    try:
-        with open(COUNTER_FILE, "r") as f:
-            return int(f.read().strip())
-    except Exception:
-        return START_NUMBER
+# --- חיבור ל-Google Sheets ---
+def get_gspread_client():
+    scope = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
+    creds_dict = dict(st.secrets["gcp_service_account"])
+    credentials = Credentials.from_service_account_info(creds_dict, scopes=scope)
+    return gspread.authorize(credentials)
 
-def increment_report_number():
-    current = get_next_report_number()
-    next_num = current + 1
-    with open(COUNTER_FILE, "w") as f:
-        f.write(str(next_num))
-    return current
+def get_worksheet():
+    client = get_gspread_client()
+    sheet_url = st.secrets["sheets"]["spreadsheet_url"]
+    return client.open_by_url(sheet_url).sheet1
+
+# --- ניהול מספר דו"ח רץ בזמן אמת מ מ-Google Sheets ---
+def get_next_report_number():
+    """שולף בזמן אמת את המספר המקסימלי הקיים בטור A ומחזיר את המספר הבא"""
+    try:
+        sheet = get_worksheet()
+        col_values = sheet.col_values(1)  # עמודה A (מספר דו"ח)
+        
+        numeric_ids = []
+        for val in col_values[1:]:  # דילוג על השורה הראשונה (כותרת)
+            val_str = str(val).strip()
+            if val_str.isdigit():
+                numeric_ids.append(int(val_str))
+                
+        if numeric_ids:
+            return max(numeric_ids) + 1
+        return START_NUMBER
+    except Exception as e:
+        st.warning(f"לא ניתן לשלוף מס' דו\"ח מ-Google Sheets, משתמש במספר ברירת מחדל: {e}")
+        return START_NUMBER
 
 def append_to_google_sheets(report_num, date_str, site_title, junction_name, inspector, license_no, permit_no, work_type, notes):
     try:
-        scope = [
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive"
-        ]
-        
-        creds_dict = dict(st.secrets["gcp_service_account"])
-        credentials = Credentials.from_service_account_info(creds_dict, scopes=scope)
-        client = gspread.authorize(credentials)
-        
-        sheet_url = st.secrets["sheets"]["spreadsheet_url"]
-        sheet = client.open_by_url(sheet_url).sheet1
+        sheet = get_worksheet()
         
         new_row = [
             str(report_num),
@@ -339,6 +346,7 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
+# שליפת מספר הדו"ח העדכני ביותר ישירות מ-Google Sheets
 current_num = get_next_report_number()
 st.info(f"📌 **מספר הדו\"ח המיועד להפקה הבאה:** #{current_num}")
 
@@ -408,7 +416,8 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
     if not site_name or not junction_name or not inspector_name:
         st.error("⚠️ אנא מלא את שם האתר, שם הצומת ושם המפקח.")
     else:
-        report_num = increment_report_number()
+        # שליפת מספר הדו"ח העדכני ביותר בדיוק בזמן הלחיצה
+        report_num = get_next_report_number()
         
         # שמירת הנתונים ב-Google Sheets
         success = append_to_google_sheets(
@@ -425,37 +434,40 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
         if success:
             st.success("הנתונים נשמרו בהצלחה ב-Google Sheets!")   
             
-        photo_sections = [
-            {"title_he": "מצב קיים בשטח (לפני העבודות)", "files": before_files, "captions": before_caps},
-            {"title_he": "הסדר תנועה סופי (אחרי העבודות)", "files": after_files, "captions": after_caps},
-            {"title_he": "החלפת מנגנון / בקר תנועה", "files": mechanism_files, "captions": mechanism_caps},
-            {"title_he": "חריצת גלאים", "files": detectors_files, "captions": detectors_caps},
-            {"title_he": "התקנת מצלמות תנועה", "files": cameras_files, "captions": cameras_caps},
-            {"title_he": "התקנת עמדת UPS", "files": ups_files, "captions": ups_caps},
-            {"title_he": "תוכנית הסדר תנועה מאושרת", "files": plan_files, "captions": plan_caps},
-            {"title_he": "נספחים / תמונות שונות", "files": misc_files, "captions": misc_caps}
-        ]
-        
-        with st.spinner("מפיק דו\"ח מפקח מקצועי..."):
-            try:
-                pdf_bytes = generate_pdf(
-                    report_num=report_num,
-                    site_title=site_name,
-                    junction_name=junction_name,
-                    inspector=inspector_name,
-                    license_no=license_no,
-                    permit_no=permit_no,
-                    date_str=str(date_val),
-                    work_type=final_work_type,
-                    notes=notes,
-                    photo_sections=photo_sections
-                )
-                
-                st.session_state['pdf_bytes'] = pdf_bytes
-                st.session_state['pdf_filename'] = f"DD_Engineers_Report_{report_num}_{date_val}.pdf"
-                st.success(f"✅ דו\"ח מס' {report_num} הופק בהצלחה!")
-            except Exception as e:
-                st.error(f"שגיאה בהפקת ה-PDF: {e}")
+            photo_sections = [
+                {"title_he": "מצב קיים בשטח (לפני העבודות)", "files": before_files, "captions": before_caps},
+                {"title_he": "הסדר תנועה סופי (אחרי העבודות)", "files": after_files, "captions": after_caps},
+                {"title_he": "החלפת מנגנון / בקר תנועה", "files": mechanism_files, "captions": mechanism_caps},
+                {"title_he": "חריצת גלאים", "files": detectors_files, "captions": detectors_caps},
+                {"title_he": "התקנת מצלמות תנועה", "files": cameras_files, "captions": cameras_caps},
+                {"title_he": "התקנת עמדת UPS", "files": ups_files, "captions": ups_caps},
+                {"title_he": "תוכנית הסדר תנועה מאושרת", "files": plan_files, "captions": plan_caps},
+                {"title_he": "נספחים / תמונות שונות", "files": misc_files, "captions": misc_caps}
+            ]
+            
+            with st.spinner("מפיק דו\"ח מפקח מקצועי..."):
+                try:
+                    pdf_bytes = generate_pdf(
+                        report_num=report_num,
+                        site_title=site_name,
+                        junction_name=junction_name,
+                        inspector=inspector_name,
+                        license_no=license_no,
+                        permit_no=permit_no,
+                        date_str=str(date_val),
+                        work_type=final_work_type,
+                        notes=notes,
+                        photo_sections=photo_sections
+                    )
+                    
+                    st.session_state['pdf_bytes'] = pdf_bytes
+                    st.session_state['pdf_filename'] = f"DD_Engineers_Report_{report_num}_{date_val}.pdf"
+                    st.success(f"✅ דו\"ח מס' {report_num} הופק בהצלחה!")
+                    
+                    # רענון המספר במסך לאחר ההפקה המוצלחת
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"שגיאה בהפקת ה-PDF: {e}")
 
 if 'pdf_bytes' in st.session_state:
     st.markdown("<br>", unsafe_allow_html=True)
