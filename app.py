@@ -35,37 +35,34 @@ def get_worksheet():
     sheet_url = st.secrets["sheets"]["spreadsheet_url"]
     return client.open_by_url(sheet_url).sheet1
 
-# --- שליפת מספר דו"ח אמינה לחלוטין (בודק עמודה A וגם עמודה O ליתר ביטחון) ---
+# --- שליפת מספר דו"ח אמינה המבוססת אך ורק על עמודה A ---
 def get_next_report_number():
     try:
         sheet = get_worksheet()
-        all_values = sheet.get_all_values()
+        # שליפת כל הערכים מעמודה A בלבד (איפה שנשמר מספר הדו"ח)
+        col_a_values = sheet.col_values(1)
         
-        if not all_values:
-            return 111
-
+        # סינון שורת הכותרת וערכים שאינם מספרים
         numbers = []
-        for row in all_values:
-            for cell in row:
-                val = str(cell).strip()
-                if val.isdigit():
-                    numbers.append(int(val))
-                    
+        for val in col_a_values:
+            val_str = str(val).strip()
+            if val_str.isdigit():
+                numbers.append(int(val_str))
+                
+        # אם קיימים מספרים בגיליון - קח את המקסימום ותוסיף 1. אם לא - התחל מ-100.
         if numbers:
-            return max(max(numbers) + 1, 111)
+            return max(max(numbers) + 1, 100)
             
-        return 111
+        return 100
     except Exception as e:
         st.warning(f"שגיאה בשליפת מספר דו\"ח: {e}")
-        return 111
+        return 100
 
 # --- כתיבה יציבה ל-Google Sheets ---
 def append_to_google_sheets(report_num, date_str, site_title, junction_name, inspector, license_no, permit_no, work_type, notes):
     try:
         sheet = get_worksheet()
         
-        # אנחנו כותבים את המספר בעמודה A (אינדקס 0) כדי להבטיח שליפה יציבה ומהירה,
-        # ובמקביל ממלאים גם את השדות בעמודות O והלאה במידת הצורך
         row_data = [
             int(report_num),   # עמודה A - מספר דו"ח לזיהוי מהיר
             str(date_str),     # עמודה B - תאריך
