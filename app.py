@@ -87,31 +87,34 @@ def setup_hebrew_fonts():
     font_reg_path = "Rubik-Regular.ttf"
     font_bold_path = "Rubik-Bold.ttf"
 
-    url_reg = "https://raw.githubusercontent.com/google/fonts/main/ofl/rubik/Rubik%5Bwght%5D.ttf"
-    url_bold = "https://raw.githubusercontent.com/google/fonts/main/ofl/rubik/Rubik-Bold.ttf"
+    # הקישורים המעודכנים והתקינים להורדת הגופנים
+    url_reg = "https://github.com/google/fonts/raw/main/ofl/rubik/Rubik%5Bwght%5D.ttf"
+    url_bold = "https://github.com/google/fonts/raw/main/ofl/rubik/static/Rubik-Bold.ttf"
 
     if not os.path.exists(font_reg_path):
         try:
             req = urllib.request.Request(url_reg, headers={'User-Agent': 'Mozilla/5.0'})
             with urllib.request.urlopen(req) as response, open(font_reg_path, 'wb') as out_file:
                 out_file.write(response.read())
-        except Exception as e:
-            st.error(f"שגיאה בהורדת גופן רגיל: {e}")
+        except Exception:
+            pass
 
     if not os.path.exists(font_bold_path):
         try:
             req = urllib.request.Request(url_bold, headers={'User-Agent': 'Mozilla/5.0'})
             with urllib.request.urlopen(req) as response, open(font_bold_path, 'wb') as out_file:
                 out_file.write(response.read())
-        except Exception as e:
-            st.error(f"שגיאה בהורדת גופן מודגש: {e}")
+        except Exception:
+            pass
 
     try:
         if os.path.exists(font_reg_path):
             pdfmetrics.registerFont(TTFont(FONT_NAME, font_reg_path))
+        
         if os.path.exists(font_bold_path):
             pdfmetrics.registerFont(TTFont(FONT_BOLD_NAME, font_bold_path))
-        else:
+        elif os.path.exists(font_reg_path):
+            # מנגנון גיבוי: במידה וההורדה של המודגש נכשלה, משתמש בגופן הרגיל
             pdfmetrics.registerFont(TTFont(FONT_BOLD_NAME, font_reg_path))
     except Exception as e:
         st.error(f"שגיאה בטעינת גופנים למערכת PDF: {e}")
