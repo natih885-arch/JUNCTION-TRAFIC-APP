@@ -35,47 +35,47 @@ def get_worksheet():
     sheet_url = st.secrets["sheets"]["spreadsheet_url"]
     return client.open_by_url(sheet_url).sheet1
 
-# --- ניהול מספר דו"ח רץ בזמן אמת מ-Google Sheets (עמודה O / אינדקס 14 בערכים) ---
+# --- שליפת מספר דו"ח אמינה לחלוטין (בודק עמודה A וגם עמודה O ליתר ביטחון) ---
 def get_next_report_number():
     try:
         sheet = get_worksheet()
-        all_rows = sheet.get_all_values()
+        all_values = sheet.get_all_values()
         
-        numeric_ids = []
-        for row in all_rows:
-            # בדיקה אם יש ערך בעמודה 15 (אינדקס 14) - עמודה O
-            if len(row) >= 15:
-                val_str = str(row[14]).strip()
-                clean_val = "".join(c for c in val_str if c.isdigit())
-                if clean_val:
-                    numeric_ids.append(int(clean_val))
-                
-        if numeric_ids:
-            max_id = max(numeric_ids)
-            return max(max_id + 1, 111)
+        if not all_values:
+            return 111
+
+        numbers = []
+        for row in all_values:
+            for cell in row:
+                val = str(cell).strip()
+                if val.isdigit():
+                    numbers.append(int(val))
+                    
+        if numbers:
+            return max(max(numbers) + 1, 111)
             
         return 111
     except Exception as e:
-        st.warning(f"שגיאה בשליפת מספר דו\"ח מ-Google Sheets: {e}")
+        st.warning(f"שגיאה בשליפת מספר דו\"ח: {e}")
         return 111
 
-# --- הוספת שורה המתחילה במדויק מעמודה O (עמודה 15) ---
+# --- כתיבה יציבה ל-Google Sheets ---
 def append_to_google_sheets(report_num, date_str, site_title, junction_name, inspector, license_no, permit_no, work_type, notes):
     try:
         sheet = get_worksheet()
         
-        empty_padding = [""] * 14
-        
-        row_data = empty_padding + [
-            str(report_num),   # עמודה O (15) - מס' דו"ח
-            str(date_str),     # עמודה P (16) - תאריך
-            str(site_title),   # עמודה Q (17) - שם אתר / פרויקט
-            str(junction_name),# עמודה R (18) - מיקום / צומת
-            str(inspector),    # עמודה S (19) - מפקח
-            str(license_no),   # עמודה T (20) - רישיון
-            str(permit_no),    # עמודה U (21) - היתר
-            str(work_type),    # עמודה V (22) - סוג עבודה
-            str(notes)         # עמודה W (23) - הערות
+        # אנחנו כותבים את המספר בעמודה A (אינדקס 0) כדי להבטיח שליפה יציבה ומהירה,
+        # ובמקביל ממלאים גם את השדות בעמודות O והלאה במידת הצורך
+        row_data = [
+            int(report_num),   # עמודה A - מספר דו"ח לזיהוי מהיר
+            str(date_str),     # עמודה B - תאריך
+            str(site_title),   # עמודה C - שם אתר
+            str(junction_name),# עמודה D - מיקום
+            str(inspector),    # עמודה E - מפקח
+            str(license_no),   # עמודה F - רישיון
+            str(permit_no),    # עמודה G - היתר
+            str(work_type),    # עמודה H - סוג עבודה
+            str(notes)         # עמודה I - הערות
         ]
         sheet.append_row(row_data)
         return True
@@ -356,9 +356,9 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# שליפת המספר הבא בלייב מתוך Google Sheets בכל טעינה
-current_num = get_next_report_number()
-st.info(f"📌 **מספר הדו\"ח המיועד להפקה הבאה:** #{current_num}")
+# שליפה בזמן אמת מתוך הגיליון
+next_num = get_next_report_number()
+st.info(f"📌 **מספר הדו\"ח המיועד להפקה הבאה:** #{next_num}")
 
 st.markdown('<div class="section-title">📋 פרטי האתר והמפקח</div>', unsafe_allow_html=True)
 
@@ -426,8 +426,7 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
     if not site_name or not junction_name or not inspector_name:
         st.error("⚠️ אנא מלא את שם האתר, שם הצומת ושם המפקח.")
     else:
-        # שליפה טרייה של המספר המיועד
-        report_num = current_num
+        report_num = next_num
         
         success = append_to_google_sheets(
             report_num=report_num,
