@@ -39,17 +39,14 @@ def get_worksheet():
 def get_next_report_number():
     try:
         sheet = get_worksheet()
-        # שליפת כל הערכים מעמודה A בלבד (איפה שנשמר מספר הדו"ח)
         col_a_values = sheet.col_values(1)
         
-        # סינון שורת הכותרת וערכים שאינם מספרים
         numbers = []
         for val in col_a_values:
             val_str = str(val).strip()
             if val_str.isdigit():
                 numbers.append(int(val_str))
                 
-        # אם קיימים מספרים בגיליון - קח את המקסימום ותוסיף 1. אם לא - התחל מ-100.
         if numbers:
             return max(max(numbers) + 1, 100)
             
@@ -64,7 +61,7 @@ def append_to_google_sheets(report_num, date_str, site_title, junction_name, ins
         sheet = get_worksheet()
         
         row_data = [
-            int(report_num),   # עמודה A - מספר דו"ח לזיהוי מהיר
+            int(report_num),   # עמודה A - מספר דו"ח
             str(date_str),     # עמודה B - תאריך
             str(site_title),   # עמודה C - שם אתר
             str(junction_name),# עמודה D - מיקום
@@ -81,10 +78,11 @@ def append_to_google_sheets(report_num, date_str, site_title, junction_name, ins
         st.code(traceback.format_exc())
         return False
 
-# --- הגדרת גופנים בעברית עבור ReportLab ---
+# --- הגדרת גופנים בעברית עבור ReportLab עם Caching ---
 FONT_NAME = 'HebrewFont'
 FONT_BOLD_NAME = 'HebrewFont-Bold'
 
+@st.cache_resource
 def setup_hebrew_fonts():
     font_reg_path = "Rubik-Regular.ttf"
     font_bold_path = "Rubik-Bold.ttf"
@@ -97,16 +95,16 @@ def setup_hebrew_fonts():
             req = urllib.request.Request(url_reg, headers={'User-Agent': 'Mozilla/5.0'})
             with urllib.request.urlopen(req) as response, open(font_reg_path, 'wb') as out_file:
                 out_file.write(response.read())
-        except Exception:
-            pass
+        except Exception as e:
+            st.error(f"שגיאה בהורדת גופן רגיל: {e}")
 
     if not os.path.exists(font_bold_path):
         try:
             req = urllib.request.Request(url_bold, headers={'User-Agent': 'Mozilla/5.0'})
             with urllib.request.urlopen(req) as response, open(font_bold_path, 'wb') as out_file:
                 out_file.write(response.read())
-        except Exception:
-            pass
+        except Exception as e:
+            st.error(f"שגיאה בהורדת גופן מודגש: {e}")
 
     try:
         if os.path.exists(font_reg_path):
@@ -116,7 +114,7 @@ def setup_hebrew_fonts():
         else:
             pdfmetrics.registerFont(TTFont(FONT_BOLD_NAME, font_reg_path))
     except Exception as e:
-        st.error(f"שגיאה בטעינת גופנים: {e}")
+        st.error(f"שגיאה בטעינת גופנים למערכת PDF: {e}")
 
 setup_hebrew_fonts()
 
@@ -353,10 +351,6 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# שליפה בזמן אמת מתוך הגיליון
-next_num = get_next_report_number()
-st.info(f"📌 **מספר הדו\"ח המיועד להפקה הבאה:** #{next_num}")
-
 st.markdown('<div class="section-title">📋 פרטי האתר והמפקח</div>', unsafe_allow_html=True)
 
 col1, col2 = st.columns(2)
@@ -423,34 +417,35 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
     if not site_name or not junction_name or not inspector_name:
         st.error("⚠️ אנא מלא את שם האתר, שם הצומת ושם המפקח.")
     else:
-        report_num = next_num
-        
-        success = append_to_google_sheets(
-            report_num=report_num,
-            date_str=str(date_val),
-            site_title=site_name,
-            junction_name=junction_name,
-            inspector=inspector_name,
-            license_no=license_no,
-            permit_no=permit_no,
-            work_type=final_work_type,
-            notes=notes
-        )
-        if success:
-            st.success("הנתונים נשמרו בהצלחה ב-Google Sheets!")    
+        with st.spinner("שולף מספר דו\"ח, שומר ב-Google Sheets ומפיק PDF..."):
+            report_num = get_next_report_number()
             
-            photo_sections = [
-                {"title_he": "מצב קיים בשטח (לפני העבודות)", "files": before_files, "captions": before_caps},
-                {"title_he": "הסדר תנועה סופי (אחרי העבודות)", "files": after_files, "captions": after_caps},
-                {"title_he": "החלפת מנגנון / בקר תנועה", "files": mechanism_files, "captions": mechanism_caps},
-                {"title_he": "חריצת גלאים", "files": detectors_files, "captions": detectors_caps},
-                {"title_he": "התקנת מצלמות תנועה", "files": cameras_files, "captions": cameras_caps},
-                {"title_he": "התקנת עמדת UPS", "files": ups_files, "captions": ups_caps},
-                {"title_he": "תוכנית הסדר תנועה מאושרת", "files": plan_files, "captions": plan_caps},
-                {"title_he": "נספחים / תמונות שונות", "files": misc_files, "captions": misc_caps}
-            ]
+            success = append_to_google_sheets(
+                report_num=report_num,
+                date_str=str(date_val),
+                site_title=site_name,
+                junction_name=junction_name,
+                inspector=inspector_name,
+                license_no=license_no,
+                permit_no=permit_no,
+                work_type=final_work_type,
+                notes=notes
+            )
             
-            with st.spinner("מפיק דו\"ח מפקח מקצועי..."):
+            if success:
+                st.success("הנתונים נשמרו בהצלחה ב-Google Sheets!")    
+                
+                photo_sections = [
+                    {"title_he": "מצב קיים בשטח (לפני העבודות)", "files": before_files, "captions": before_caps},
+                    {"title_he": "הסדר תנועה סופי (אחרי העבודות)", "files": after_files, "captions": after_caps},
+                    {"title_he": "החלפת מנגנון / בקר תנועה", "files": mechanism_files, "captions": mechanism_caps},
+                    {"title_he": "חריצת גלאים", "files": detectors_files, "captions": detectors_caps},
+                    {"title_he": "התקנת מצלמות תנועה", "files": cameras_files, "captions": cameras_caps},
+                    {"title_he": "התקנת עמדת UPS", "files": ups_files, "captions": ups_caps},
+                    {"title_he": "תוכנית הסדר תנועה מאושרת", "files": plan_files, "captions": plan_caps},
+                    {"title_he": "נספחים / תמונות שונות", "files": misc_files, "captions": misc_caps}
+                ]
+                
                 try:
                     pdf_bytes = generate_pdf(
                         report_num=report_num,
