@@ -1,6 +1,7 @@
 import io
 import os
 import urllib.request
+import traceback
 import streamlit as st
 import arabic_reshaper
 from bidi.algorithm import get_display
@@ -38,7 +39,6 @@ def get_worksheet():
 
 # --- ניהול מספר דו"ח רץ בזמן אמת מ-Google Sheets ---
 def get_next_report_number():
-    """שולף בזמן אמת את המספר המקסימלי הקיים בטור A ומחזיר את המספר הבא"""
     try:
         sheet = get_worksheet()
         col_values = sheet.col_values(1)  # עמודה A (מספר דו"ח)
@@ -59,7 +59,6 @@ def get_next_report_number():
 def append_to_google_sheets(report_num, date_str, site_title, junction_name, inspector, license_no, permit_no, work_type, notes):
     try:
         sheet = get_worksheet()
-        
         new_row = [
             str(report_num),
             str(date_str),
@@ -74,7 +73,6 @@ def append_to_google_sheets(report_num, date_str, site_title, junction_name, ins
         sheet.append_row(new_row)
         return True
     except Exception as e:
-        import traceback
         st.error(f"שגיאה בשמירה ל-Google Sheets: {str(e)}")
         st.code(traceback.format_exc())
         return False
@@ -197,7 +195,7 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
     story.append(Paragraph(heb(f"שם האתר / פרויקט: {site_title}"), style_proj_title))
     story.append(Spacer(1, 0.2 * cm))
 
-    # 3. טבלת פרטים (סדר העמודות מותאם מימין לשמאל ב-ReportLab)
+    # 3. טבלת פרטים
     insp_str = f"מפקח: {inspector}"
     if license_no and license_no.strip():
         insp_str += f" (רישיון: {license_no.strip()})"
@@ -207,8 +205,8 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
         work_type_str += f" | היתר: {permit_no.strip()}"
 
     info_data = [
-        [Paragraph(heb(f"צומת / מיקום: {junction_name}"), style_cell_label), Paragraph(heb(insp_str), style_cell_label)],
-        [Paragraph(heb(f"תאריך: {date_str}"), style_cell_label), Paragraph(heb(work_type_str), style_cell_label)]
+        [Paragraph(heb(insp_str), style_cell_label), Paragraph(heb(f"צומת / מיקום: {junction_name}"), style_cell_label)],
+        [Paragraph(heb(work_type_str), style_cell_label), Paragraph(heb(f"תאריך: {date_str}"), style_cell_label)]
     ]
     info_table = Table(info_data, colWidths=[9 * cm, 9 * cm])
     info_table.setStyle(TableStyle([
@@ -260,8 +258,10 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
         photo_cells = []
         for i, f in enumerate(files):
             try:
+                # קריאת התמונה בצורה בטוחה מזיכרון
+                f.seek(0)
                 img = Image.open(f)
-                img = ImageOps.exif_transpose(img)  # תיקון סיבוב תמונה לפי EXIF
+                img = ImageOps.exif_transpose(img)
                 
                 if img.mode != "RGB":
                     img = img.convert("RGB")
@@ -283,7 +283,6 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
         grid_rows = []
         for i in range(0, len(photo_cells), 2):
             if i + 1 < len(photo_cells):
-                # בעברית (RTL) התמונה הראשונה תהיה מימין (עמודה אינדקס 1 במערך של 2 עמודות)
                 grid_rows.append([photo_cells[i+1], photo_cells[i]])
             else:
                 grid_rows.append(["", photo_cells[i]])
@@ -306,8 +305,8 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
         sig_text += f" | היתר עבודה: {permit_no.strip()}"
 
     sig_data = [
-        [Paragraph(heb(sig_text), style_cell_label), Paragraph(heb(f"תאריך: {date_str}"), style_cell_label)],
-        [Paragraph(heb("חתימת המפקח: _______________________"), style_cell_label), ""]
+        [Paragraph(heb(f"תאריך: {date_str}"), style_cell_label), Paragraph(heb(sig_text), style_cell_label)],
+        ["", Paragraph(heb("חתימת המפקח: _______________________"), style_cell_label)]
     ]
     sig_table = Table(sig_data, colWidths=[9 * cm, 9 * cm])
     sig_table.setStyle(TableStyle([
@@ -351,7 +350,6 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# שליפת מספר הדו"ח העדכני ביותר ישירות מ-Google Sheets
 current_num = get_next_report_number()
 st.info(f"📌 **מספר הדו\"ח המיועד להפקה הבאה:** #{current_num}")
 
@@ -421,10 +419,8 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
     if not site_name or not junction_name or not inspector_name:
         st.error("⚠️ אנא מלא את שם האתר, שם הצומת ושם המפקח.")
     else:
-        # שליפת מספר הדו"ח העדכני ביותר בזמן בלחיצה
         report_num = get_next_report_number()
         
-        # שמירת הנתונים ב-Google Sheets
         success = append_to_google_sheets(
             report_num=report_num,
             date_str=str(date_val),
