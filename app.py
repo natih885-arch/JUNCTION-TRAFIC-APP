@@ -20,9 +20,6 @@ from reportlab.pdfbase.ttfonts import TTFont
 # --- הגדרת תצורת עמוד ב-Streamlit ---
 st.set_page_config(page_title="דו\"ח מפקח הסדר תנועה - ד.ד מהנדסים בע''מ", page_icon="🚦", layout="centered")
 
-# הגדרת מספר התחלתי במידה והגיליון ריק לחלוטין (מאחר ו-110 כבר בגיליון, נרצה להתחיל מ-110 כדי הדו"ח הבא יהיה 111)
-START_NUMBER = 110
-
 # --- חיבור ל-Google Sheets ---
 def get_gspread_client():
     scope = [
@@ -42,29 +39,33 @@ def get_worksheet():
 def get_next_report_number():
     try:
         sheet = get_worksheet()
-        # שליפת נתונים מעמודה 15 (עמודה O בגיליון)
+        # שליפת כל הנתונים מעמודה 15 (עמודה O)
         col_values = sheet.col_values(15) 
         
         numeric_ids = []
-        for val in col_values[1:]:  # דילוג על הכותרת
+        for val in col_values:
             val_str = str(val).strip()
-            if val_str.isdigit():
-                numeric_ids.append(int(val_str))
+            # סינון תווים שאינם ספרות
+            clean_val = "".join(c for c in val_str if c.isdigit())
+            if clean_val:
+                numeric_ids.append(int(clean_val))
                 
         if numeric_ids:
-            return max(numeric_ids) + 1
-        return START_NUMBER + 1
+            max_id = max(numeric_ids)
+            # אם המספר המקסימלי שנמצא קטן מ-110, נתחיל לכל הפחות מ-111
+            return max(max_id + 1, 111)
+            
+        return 111
     except Exception as e:
-        st.warning(f"לא ניתן לשלוף מס' דו\"ח מ-Google Sheets, משתמש במספר ברירת מחדל: {e}")
-        return START_NUMBER + 1
+        st.warning(f"שגיאה בשליפת מספר דו\"ח מ-Google Sheets: {e}")
+        return 111
 
 # --- הוספת שורה המתחילה במדויק מעמודה O (עמודה 15) ---
 def append_to_google_sheets(report_num, date_str, site_title, junction_name, inspector, license_no, permit_no, work_type, notes):
     try:
         sheet = get_worksheet()
         
-        # כדי להתחיל לכתוב בעמודה O (עמודה 15), צריך בדיוק 14 תאים ריקים בלבד!
-        # (תא 1 עד 14 ריקים, תא 15 הוא עמודה O)
+        # 14 תאים ריקים (אחר כך עמודה 15 היא O)
         empty_padding = [""] * 14
         
         row_data = empty_padding + [
@@ -357,6 +358,7 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
+# שליפת מספר רץ עדכני בלייב
 current_num = get_next_report_number()
 st.info(f"📌 **מספר הדו\"ח המיועד להפקה הבאה:** #{current_num}")
 
@@ -471,7 +473,7 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
                     st.session_state['pdf_bytes'] = pdf_bytes
                     st.session_state['pdf_filename'] = f"DD_Engineers_Report_{report_num}_{date_val}.pdf"
                     st.success(f"✅ דו\"ח מס' {report_num} הופק בהצלחה!")
-                    st.rerun()  # מרענן את המסך כדי להעלות מיד את מספר הדו"ח הבא
+                    st.rerun()
                 except Exception as e:
                     st.error(f"שגיאה בהפקת ה-PDF: {e}")
 
