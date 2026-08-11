@@ -19,37 +19,53 @@ from reportlab.pdfbase.ttfonts import TTFont
 # --- הגדרת תצורת עמוד ב-Streamlit ---
 st.set_page_config(page_title="דו\"ח מפקח הסדר תנועה - ד.ד מהנדסים בע''מ", page_icon="🚦", layout="centered")
 
-# --- ניהול מספר דו"ח רץ ---
-COUNTER_FILE = "report_counter.txt"
 START_NUMBER = 100
 
-def get_next_report_number():
-    if not os.path.exists(COUNTER_FILE):
-        return START_NUMBER
-    try:
-        with open(COUNTER_FILE, "r") as f:
-            return int(f.read().strip())
-    except Exception:
-        return START_NUMBER
-
-def increment_report_number():
-    current = get_next_report_number()
-    next_num = current + 1
-    with open(COUNTER_FILE, "w") as f:
-        f.write(str(next_num))
-    return current
-
-def append_to_google_sheets(report_num, date_str, site_title, junction_name, inspector, license_no, permit_no, work_type, notes):
+def get_gspread_client():
     try:
         scope = [
             "https://www.googleapis.com/auth/spreadsheets",
             "https://www.googleapis.com/auth/drive"
         ]
-        
         creds_dict = dict(st.secrets["gcp_service_account"])
         credentials = Credentials.from_service_account_info(creds_dict, scopes=scope)
-        client = gspread.authorize(credentials)
+        return gspread.authorize(credentials)
+    except Exception:
+        return None
+
+def get_next_report_number():
+    """שולף את מספר הדו"ח הגבוה ביותר מטור A בלבד"""
+    try:
+        client = get_gspread_client()
+        if not client:
+            return START_NUMBER
+        sheet_url = st.secrets["sheets"]["spreadsheet_url"]
+        sheet = client.open_by_url(sheet_url).sheet1
         
+        # מוציא רק את טור A (מספרי הדו"חות)
+        col_a = sheet.col_values(1)
+        
+        if len(col_a) <= 1:  # רק כותרת או ריק
+            return START_NUMBER
+        
+        report_numbers = []
+        for val in col_a[1:]:
+            if val and str(val).strip().isdigit():
+                report_numbers.append(int(val.strip()))
+        
+        if report_numbers:
+            return max(report_numbers) + 1
+        return START_NUMBER
+    except Exception:
+        return START_NUMBER
+
+def append_to_google_sheets(report_num, date_str, site_title, junction_name, inspector, license_no, permit_no, work_type, notes):
+    try:
+        client = get_gspread_client()
+        if not client:
+            st.error("שגיאה: לא ניתן להתחבר ל-Google Sheets.")
+            return False
+            
         sheet_url = st.secrets["sheets"]["spreadsheet_url"]
         sheet = client.open_by_url(sheet_url).sheet1
         
@@ -64,15 +80,45 @@ def append_to_google_sheets(report_num, date_str, site_title, junction_name, ins
             str(work_type),
             str(notes)
         ]
-        sheet.append_row(new_row)
+        # מוסיף תמיד מטור A כדי למנוע קפיצות ימינה
+        sheet.append_row(new_row, table_range="A1:I1000")
         return True
     except Exception as e:
-        import traceback
         st.error(f"שגיאה בשמירה ל-Google Sheets: {str(e)}")
-        st.code(traceback.format_exc())
         return False
 
-# --- הורדת גופן עברי מקומית והגדרתו עבור ReportLab ---
+def clear_and_reset_sheet():
+    """פונקציית הקסם: מוחקת את כל הבלגן בגיליון ובונה כותרות חדשות בטורים A-I"""
+    try:
+        client = get_gspread_client()
+        if not client:
+            st.error("לא ניתן להתחבר ל-Google Sheets")
+            return False
+        sheet_url = st.secrets["sheets"]["spreadsheet_url"]
+        sheet = client.open_by_url(sheet_url).sheet1
+        
+        # מוחק את כל התאים בגיליון
+        sheet.clear()
+        
+        # כותב שורת כותרות מסודרת בטורים A עד I
+        headers = [
+            "מספר דו\"ח",
+            "תאריך",
+            "שם האתר",
+            "צומת / מיקום",
+            "מפקח",
+            "מספר רישיון",
+            "מספר היתר",
+            "סוג עבודה",
+            "הערות"
+        ]
+        sheet.append_row(headers)
+        return True
+    except Exception as e:
+        st.error(f"שגיאה באיפוס הגיליון: {e}")
+        return False
+
+# --- הגדרת פונטים עבור PDF ---
 FONT_NAME = 'HebrewFont'
 FONT_BOLD_NAME = 'HebrewFont-Bold'
 
@@ -112,12 +158,10 @@ def setup_hebrew_fonts():
 setup_hebrew_fonts()
 
 def heb(text):
-    """טיפול מותאם בעברית וביטויים מעורבים (דו-כיווניות)"""
     if not text:
         return ""
     reshaped_text = arabic_reshaper.reshape(str(text))
-    bidi_text = get_display(reshaped_text)
-    return bidi_text
+    return get_display(reshaped_text)
 
 class NumberedCanvas(canvas.Canvas):
     def __init__(self, *args, **kwargs):
@@ -157,32 +201,9 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
 
     styles = getSampleStyleSheet()
     
-    # --- תיקון סגנונות הכותרת (יישור למרכז ופונט מוגדר) ---
-    style_header_title = ParagraphStyle(
-        'HeaderTitle', 
-        fontName=FONT_BOLD_NAME, 
-        fontSize=16, 
-        leading=20, 
-        textColor=colors.white, 
-        alignment=1 # 1 = Center
-    )
-    style_header_sub = ParagraphStyle(
-        'HeaderSub', 
-        fontName=FONT_BOLD_NAME, 
-        fontSize=13, 
-        leading=17, 
-        textColor=colors.white, 
-        alignment=1
-    )
-    style_header_small = ParagraphStyle(
-        'HeaderSmall', 
-        fontName=FONT_NAME, 
-        fontSize=9, 
-        leading=12, 
-        textColor=colors.HexColor("#e2e8f0"), 
-        alignment=1
-    )
-
+    style_header_title = ParagraphStyle('HeaderTitle', fontName=FONT_BOLD_NAME, fontSize=16, leading=20, textColor=colors.white, alignment=1)
+    style_header_sub = ParagraphStyle('HeaderSub', fontName=FONT_BOLD_NAME, fontSize=13, leading=17, textColor=colors.white, alignment=1)
+    style_header_small = ParagraphStyle('HeaderSmall', fontName=FONT_NAME, fontSize=9, leading=12, textColor=colors.HexColor("#e2e8f0"), alignment=1)
     style_proj_title = ParagraphStyle('ProjTitle', fontName=FONT_BOLD_NAME, fontSize=14, leading=18, textColor=colors.HexColor("#182b49"), alignment=2)
     style_cell_label = ParagraphStyle('CellLabel', fontName=FONT_BOLD_NAME, fontSize=10, leading=14, textColor=colors.HexColor("#0f172a"), alignment=2)
     style_notes_title = ParagraphStyle('NotesTitle', fontName=FONT_BOLD_NAME, fontSize=12, leading=16, textColor=colors.HexColor("#182b49"), alignment=2)
@@ -192,7 +213,6 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
 
     story = []
 
-    # 1. באנר כותרת ראשית מתוקן (הפרדת אנגלית ועברית בצורה נקייה)
     title_line1 = heb("ד.ד מהנדסים בע''מ") + " - D.D. ENGINEERS LTD"
     title_line2 = heb(f"דו\"ח פיקוח ואכיפת הסדרי תנועה מס' {report_num}")
     title_line3 = heb("מסמך פיקוח שטח רשמי")
@@ -214,11 +234,9 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
     story.append(header_table)
     story.append(Spacer(1, 0.4 * cm))
 
-    # 2. שם פרויקט
     story.append(Paragraph(heb(f"שם האתר / פרויקט: {site_title}"), style_proj_title))
     story.append(Spacer(1, 0.2 * cm))
 
-    # 3. טבלת פרטים
     insp_str = f"מפקח: {inspector}"
     if license_no and license_no.strip():
         insp_str += f" (רישיון: {license_no.strip()})"
@@ -243,7 +261,6 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
     story.append(info_table)
     story.append(Spacer(1, 0.4 * cm))
 
-    # 4. הערות מפקח
     story.append(Paragraph(heb("הערות, ממצאים והנחיות מפקח:"), style_notes_title))
     story.append(Spacer(1, 0.1 * cm))
     
@@ -261,7 +278,6 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
     story.append(notes_table)
     story.append(Spacer(1, 0.5 * cm))
 
-    # 5. תמונות לפי קטגוריות
     for section in photo_sections:
         files = section.get("files")
         captions = section.get("captions", [])
@@ -314,7 +330,6 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
             story.append(KeepTogether([sec_title_table, Spacer(1, 0.2 * cm), grid_table]))
             story.append(Spacer(1, 0.3 * cm))
 
-    # 6. חתימה
     sig_text = f"שם המפקח: {inspector}"
     if license_no and license_no.strip():
         sig_text += f" | מס' רישיון: {license_no.strip()}"
@@ -337,7 +352,7 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
     return buffer.getvalue()
 
 
-# --- ממשק המשתמש (Streamlit UI) ---
+# --- UI ---
 
 st.markdown("""
     <style>
@@ -359,6 +374,14 @@ st.markdown("""
     .stButton>button:hover { background-color: #2563eb !important; }
     </style>
 """, unsafe_allow_html=True)
+
+# --- סרגל צד לניהול ואיפוס הגיליון ---
+st.sidebar.title("⚙️ ניהול גיליון")
+st.sidebar.warning("מחק בלגן מהגיליון ואפס את הדו\"חות מחדש:")
+if st.sidebar.button("🧹 אפס ונקה את ה-Google Sheets"):
+    if clear_and_reset_sheet():
+        st.sidebar.success("✅ הגיליון נוקה בהצלחה! הדו\"ח הבא יהיה #100.")
+        st.rerun()
 
 st.markdown("""
     <div class="main-header">
@@ -436,9 +459,8 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
     if not site_name or not junction_name or not inspector_name:
         st.error("⚠️ אנא מלא את שם האתר, שם הצומת ושם המפקח.")
     else:
-        report_num = increment_report_number()
+        report_num = get_next_report_number()
         
-        # שמירת הנתונים ב-Google Sheets
         success = append_to_google_sheets(
             report_num=report_num,
             date_str=str(date_val),
@@ -451,39 +473,41 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
             notes=notes
         )
         if success:
-            st.success("הנתונים נשמרו בהצלחה ב-Google Sheets!")   
+            st.success(f"הנתונים נשמרו בהצלחה ב-Google Sheets (דו\"ח מס' {report_num})!")   
             
-        photo_sections = [
-            {"title_he": "מצב קיים בשטח (לפני העבודות)", "files": before_files, "captions": before_caps},
-            {"title_he": "הסדר תנועה סופי (אחרי העבודות)", "files": after_files, "captions": after_caps},
-            {"title_he": "החלפת מנגנון / בקר תנועה", "files": mechanism_files, "captions": mechanism_caps},
-            {"title_he": "חריצת גלאים", "files": detectors_files, "captions": detectors_caps},
-            {"title_he": "התקנת מצלמות תנועה", "files": cameras_files, "captions": cameras_caps},
-            {"title_he": "התקנת עמדת UPS", "files": ups_files, "captions": ups_caps},
-            {"title_he": "תוכנית הסדר תנועה מאושרת", "files": plan_files, "captions": plan_caps},
-            {"title_he": "נספחים / תמונות שונות", "files": misc_files, "captions": misc_caps}
-        ]
-        
-        with st.spinner("מפיק דו\"ח מפקח מקצועי..."):
-            try:
-                pdf_bytes = generate_pdf(
-                    report_num=report_num,
-                    site_title=site_name,
-                    junction_name=junction_name,
-                    inspector=inspector_name,
-                    license_no=license_no,
-                    permit_no=permit_no,
-                    date_str=str(date_val),
-                    work_type=final_work_type,
-                    notes=notes,
-                    photo_sections=photo_sections
-                )
-                
-                st.session_state['pdf_bytes'] = pdf_bytes
-                st.session_state['pdf_filename'] = f"DD_Engineers_Report_{report_num}_{date_val}.pdf"
-                st.success(f"✅ דו\"ח מס' {report_num} הופק בהצלחה!")
-            except Exception as e:
-                st.error(f"שגיאה בהפקת ה-PDF: {e}")
+            photo_sections = [
+                {"title_he": "מצב קיים בשטח (לפני העבודות)", "files": before_files, "captions": before_caps},
+                {"title_he": "הסדר תנועה סופי (אחרי העבודות)", "files": after_files, "captions": after_caps},
+                {"title_he": "החלפת מנגנון / בקר תנועה", "files": mechanism_files, "captions": mechanism_caps},
+                {"title_he": "חריצת גלאים", "files": detectors_files, "captions": detectors_caps},
+                {"title_he": "התקנת מצלמות תנועה", "files": cameras_files, "captions": cameras_caps},
+                {"title_he": "התקנת עמדת UPS", "files": ups_files, "captions": ups_caps},
+                {"title_he": "תוכנית הסדר תנועה מאושרת", "files": plan_files, "captions": plan_caps},
+                {"title_he": "נספחים / תמונות שונות", "files": misc_files, "captions": misc_caps}
+            ]
+            
+            with st.spinner("מפיק דו\"ח מפקח מקצועי..."):
+                try:
+                    pdf_bytes = generate_pdf(
+                        report_num=report_num,
+                        site_title=site_name,
+                        junction_name=junction_name,
+                        inspector=inspector_name,
+                        license_no=license_no,
+                        permit_no=permit_no,
+                        date_str=str(date_val),
+                        work_type=final_work_type,
+                        notes=notes,
+                        photo_sections=photo_sections
+                    )
+                    
+                    st.session_state['pdf_bytes'] = pdf_bytes
+                    st.session_state['pdf_filename'] = f"DD_Engineers_Report_{report_num}_{date_val}.pdf"
+                    st.success(f"✅ דו\"ח מס' {report_num} הופק בהצלחה!")
+                except Exception as e:
+                    st.error(f"שגיאה בהפקת ה-PDF: {e}")
+        else:
+            st.error("לא ניתן להפיק PDF משום שהשמירה ב-Google Sheets נכשלה.")
 
 if 'pdf_bytes' in st.session_state:
     st.markdown("<br>", unsafe_allow_html=True)
