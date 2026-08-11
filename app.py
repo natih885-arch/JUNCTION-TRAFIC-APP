@@ -80,42 +80,11 @@ def append_to_google_sheets(report_num, date_str, site_title, junction_name, ins
             str(work_type),
             str(notes)
         ]
-        # מוסיף תמיד מטור A כדי למנוע קפיצות ימינה
+        # מוסיף תמיד מטור A עד I כדי למנוע קפיצות
         sheet.append_row(new_row, table_range="A1:I1000")
         return True
     except Exception as e:
         st.error(f"שגיאה בשמירה ל-Google Sheets: {str(e)}")
-        return False
-
-def clear_and_reset_sheet():
-    """פונקציית הקסם: מוחקת את כל הבלגן בגיליון ובונה כותרות חדשות בטורים A-I"""
-    try:
-        client = get_gspread_client()
-        if not client:
-            st.error("לא ניתן להתחבר ל-Google Sheets")
-            return False
-        sheet_url = st.secrets["sheets"]["spreadsheet_url"]
-        sheet = client.open_by_url(sheet_url).sheet1
-        
-        # מוחק את כל התאים בגיליון
-        sheet.clear()
-        
-        # כותב שורת כותרות מסודרת בטורים A עד I
-        headers = [
-            "מספר דו\"ח",
-            "תאריך",
-            "שם האתר",
-            "צומת / מיקום",
-            "מפקח",
-            "מספר רישיון",
-            "מספר היתר",
-            "סוג עבודה",
-            "הערות"
-        ]
-        sheet.append_row(headers)
-        return True
-    except Exception as e:
-        st.error(f"שגיאה באיפוס הגיליון: {e}")
         return False
 
 # --- הגדרת פונטים עבור PDF ---
@@ -374,14 +343,6 @@ st.markdown("""
     .stButton>button:hover { background-color: #2563eb !important; }
     </style>
 """, unsafe_allow_html=True)
-
-# --- סרגל צד לניהול ואיפוס הגיליון ---
-st.sidebar.title("⚙️ ניהול גיליון")
-st.sidebar.warning("מחק בלגן מהגיליון ואפס את הדו\"חות מחדש:")
-if st.sidebar.button("🧹 אפס ונקה את ה-Google Sheets"):
-    if clear_and_reset_sheet():
-        st.sidebar.success("✅ הגיליון נוקה בהצלחה! הדו\"ח הבא יהיה #100.")
-        st.rerun()
 
 st.markdown("""
     <div class="main-header">
