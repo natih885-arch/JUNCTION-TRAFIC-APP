@@ -365,12 +365,13 @@ with col1:
 with col2:
     date_val = st.date_input("תאריך הבדיקה")
     
+    # 📌 תיקון הניסוח למניעת היפוך כיווניות בדפדפן
     work_type_options = [
         "הסדר תנועה זמני", 
         "הקמת צומת", 
         "הקמת צומת חדשה", 
         "החלפת מנגנון",
-        "החלפת CPU", 
+        "החלפת מעבד (CPU)", 
         "חריצת גלאים", 
         "התקנת מצלמות", 
         "התקנת עמדת UPS", 
@@ -411,11 +412,10 @@ with col_top2:
 st.markdown("<hr style='border: 0.5px dashed #cbd5e1; margin: 15px 0;'>", unsafe_allow_html=True)
 st.markdown("##### ➕ תמונות לפי קטגוריות מקצועיות (רשות)")
 
-# 📌 השלמת הסקשנים של התמונות עם "החלפת CPU"
 col_a, col_b = st.columns(2)
 with col_a:
     mechanism_files, mechanism_caps = render_upload_section("תמונות - החלפת מנגנון", "mechanism")
-    cpu_files, cpu_caps = render_upload_section("תמונות - החלפת CPU", "cpu")  # ✅ נוסף כאן!
+    cpu_files, cpu_caps = render_upload_section("תמונות - החלפת מעבד (CPU)", "cpu")
     cameras_files, cameras_caps = render_upload_section("תמונות - התקנת מצלמות", "cameras")
     plan_files, plan_caps = render_upload_section("צילום תוכנית / שרטוט", "plan")
 
@@ -446,12 +446,11 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
         if success:
             st.success(f"הנתונים נשמרו בהצלחה ב-Google Sheets (דו\"ח מס' {report_num})!")   
             
-            # 📌 חיבור הסקשן של CPU לתוך יצירת ה-PDF
             photo_sections = [
                 {"title_he": "מצב קיים בשטח (לפני העבודות)", "files": before_files, "captions": before_caps},
                 {"title_he": "הסדר תנועה סופי (אחרי העבודות)", "files": after_files, "captions": after_caps},
                 {"title_he": "החלפת מנגנון / בקר תנועה", "files": mechanism_files, "captions": mechanism_caps},
-                {"title_he": "החלפת CPU / רכיב עיבוד", "files": cpu_files, "captions": cpu_caps},  # ✅ נוסף ל-PDF!
+                {"title_he": "החלפת מעבד (CPU) / רכיב עיבוד", "files": cpu_files, "captions": cpu_caps},
                 {"title_he": "חריצת גלאים", "files": detectors_files, "captions": detectors_caps},
                 {"title_he": "התקנת מצלמות תנועה", "files": cameras_files, "captions": cameras_caps},
                 {"title_he": "התקנת עמדת UPS", "files": ups_files, "captions": ups_caps},
