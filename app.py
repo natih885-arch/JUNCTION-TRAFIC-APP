@@ -182,7 +182,7 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
     story = []
 
     title_line1 = heb("ד.ד מהנדסים בע''מ") + " - D.D. ENGINEERS LTD"
-    title_line2 = heb(f"דו\"ח פיקוח ואכיפת הסדרי תנועה מס' {report_num}")
+    title_line2 = heb(f'דו"ח פיקוח ואכיפת הסדרי תנועה מס\' {report_num}')
     title_line3 = heb("מסמך פיקוח שטח רשמי")
 
     header_data = [
@@ -248,7 +248,7 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
 
     # --- הוספת סקיצת רכבת קלה ---
     if lr_svg and lr_arm_settings:
-        story.append(Paragraph(heb("סקיצה הנדסית - צומת רכבת קלה (רק\"ל):"), style_notes_title))
+        story.append(Paragraph(heb('סקיצה הנדסית - צומת רכבת קלה (רק"ל):'), style_notes_title))
         story.append(Spacer(1, 0.2 * cm))
 
         try:
@@ -268,8 +268,8 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
             Paragraph(heb("מעבר חצייה"), style_caption),
             Paragraph(heb("מיקום עמוד"), style_caption),
             Paragraph(heb("סוג עמוד"), style_caption),
-            Paragraph(heb("פנס רק\"ל"), style_caption),
-            Paragraph(heb("פ\"ת"), style_caption),
+            Paragraph(heb('פנס רק"ל'), style_caption),
+            Paragraph(heb('פ"ת'), style_caption),
             Paragraph(heb("זרוע"), style_caption)
         ]]
 
@@ -405,7 +405,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 current_num = get_next_report_number()
-st.info(f"📌 **מספר הדו\"ח המיועד להפקה הבאה:** #{current_num}")
+st.info(f'📌 **מספר הדו"ח המיועד להפקה הבאה:** #{current_num}')
 
 st.markdown('<div class="section-title">📋 פרטי האתר והמפקח</div>', unsafe_allow_html=True)
 
@@ -424,7 +424,7 @@ with col2:
         "הסדר תנועה זמני", 
         "הקמת צומת", 
         "הקמת צומת חדשה", 
-        "עבודות רכבת קלה (רק\"ל)",
+        'עבודות רכבת קלה (רק"ל)',
         "החלפת מנגנון",
         "החלפת מעבד (CPU)", 
         "חריצת גלאים", 
@@ -450,10 +450,10 @@ notes = st.text_area("הערות מפקח, מפגעים ודגשים", placehold
 full_svg = None
 arm_settings = {}
 
-if selected_work_type == "עבודות רכבת קלה (רק\"ל)":
+if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
     st.markdown('<div class="section-title">🚃 מחולל סקיצה דינמי - רכבת קלה</div>', unsafe_allow_html=True)
     
-    toggle_sketch = st.checkbox("הצג מחולל סקיצת צומת רק\"ל", value=True)
+    toggle_sketch = st.checkbox('הצג מחולל סקיצת צומת רק"ל', value=True)
 
     if toggle_sketch:
         col_sketch_l, col_sketch_r = st.columns([1, 1])
@@ -466,8 +466,8 @@ if selected_work_type == "עבודות רכבת קלה (רק\"ל)":
 
             for d in directions:
                 with st.expander(f"🚦 הגדרות זרוע {d}"):
-                   traffic_light = st.selectbox(f'פ"ת לרכב ({d})', ["קיים / ללא שינוי", "חדש", "מבוטל", "ללא"], key=f"tl_{d}")
-                    traffic_dir = st.selectbox(f"כיוון פ"ת ({d})", ["נכנס לצומת", "יוצא מהצומת", "דו-כיווני (לשני הצדדים)"], key=f"tdir_{d}")
+                    traffic_light = st.selectbox(f'פ"ת לרכב ({d})', ["קיים / ללא שינוי", "חדש", "מבוטל", "ללא"], key=f"tl_{d}")
+                    traffic_dir = st.selectbox(f'כיוון פ"ת ({d})', ["נכנס לצומת", "יוצא מהצומת", "דו-כיווני (לשני הצדדים)"], key=f"tdir_{d}")
                     pole_type = st.selectbox(f"סוג עמוד ראשי ({d})", ["עמוד מתכת", "עמוד עץ", "ללא עמוד"], key=f"pole_{d}")
                     
                     pole_type_opp = "ללא עמוד"
@@ -581,7 +581,7 @@ if selected_work_type == "עבודות רכבת קלה (רק\"ל)":
                     svg_elements.append(f'<rect x="{ac["ped_x"]}" y="{ac["ped_top_y"]}" width="8" height="8" fill="{ped_color}" stroke="#ffffff" stroke-width="1" />')
                     svg_elements.append(f'<rect x="{ac["ped_x"]}" y="{ac["ped_bot_y"]}" width="8" height="8" fill="{ped_color}" stroke="#ffffff" stroke-width="1" />')
 
-        # מקרא מורחב וקומפקטי - ללא תיוגי טקסט בעברית בداخل ה-SVG כדי למנוע ריבועים
+        # מקרא מורחב וקומפקטי
         svg_elements.append('<rect x="10" y="380" width="160" height="110" fill="#111116" rx="5" stroke="#444" opacity="0.9"/>')
         svg_elements.append('<circle cx="20" cy="395" r="4" fill="#2ecc71" />')
         svg_elements.append('<circle cx="20" cy="410" r="4" fill="#00ff66" stroke="#fff" stroke-width="0.5" />')
@@ -650,7 +650,7 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
             notes=notes
         )
         if success:
-            st.success(f"הנתונים נשמרו בהצלחה ב-Google Sheets (דו\"ח מס' {report_num})!")   
+            st.success(f'הנתונים נשמרו בהצלחה ב-Google Sheets (דו"ח מס\' {report_num})!')   
             
             photo_sections = [
                 {"title_he": "מצב קיים בשטח (לפני העבודות)", "files": before_files, "captions": before_caps},
