@@ -2,6 +2,7 @@ import io
 import os
 import urllib.request
 import streamlit as st
+import streamlit.components.v1 as components
 import arabic_reshaper
 from bidi.algorithm import get_display
 from PIL import Image
@@ -154,6 +155,134 @@ class NumberedCanvas(canvas.Canvas):
         footer_text = heb(f"כל הזכויות שמורות לנתנאל עוז הררי © | נייד: 054-5520445 | ד.ד מהנדסים בע''מ | עמוד {self._pageNumber} מתוך {page_count}")
         self.drawCentredString(A4[0] / 2.0, 1 * cm, footer_text)
         self.restoreState()
+
+# --- מחולל סקיצת צומת ורכבת קלה (SVG דינמי) ---
+def generate_junction_svg(junction_type, has_overhead_cable, arm_settings):
+    """
+    מייצרת תרשים SVG דינמי של צומת עם מסילת רכבת קלה, פנסי תנועה, פנסי רק"ל והעתקות/שינויים
+    """
+    svg = """<svg width="450" height="450" viewBox="0 0 450 450" xmlns="http://www.w3.org/2000/svg" style="background-color: #1e293b; border-radius: 8px;">
+    <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#38bdf8"/>
+        </marker>
+    </defs>
+    <!-- כביש רקע -->
+    """
+    
+    # ציור תשתיות כביש
+    if junction_type == "צומת X (4 זרועות)":
+        svg += '<rect x="0" y="175" width="450" height="100" fill="#334155" />'
+        svg += '<rect x="175" y="0" width="100" height="450" fill="#334155" />'
+    elif junction_type == "צומת T (3 זרועות - ללא צפון)":
+        svg += '<rect x="0" y="175" width="450" height="100" fill="#334155" />'
+        svg += '<rect x="175" y="175" width="100" height="275" fill="#334155" />'
+    else: # קטע ישר
+        svg += '<rect x="0" y="175" width="450" height="100" fill="#334155" />'
+
+    # קווי כביש מקווקוים
+    svg += '<line x1="0" y1="225" x2="450" y2="225" stroke="#94a3b8" stroke-dasharray="8,8" stroke-width="2"/>'
+    if junction_type == "צומת X (4 זרועות)":
+        svg += '<line x1="225" y1="0" x2="225" y2="450" stroke="#94a3b8" stroke-dasharray="8,8" stroke-width="2"/>'
+
+    # מסילת רכבת קלה במרכז
+    svg += '<rect x="0" y="215" width="450" height="20" fill="#475569" />'
+    svg += '<line x1="0" y1="218" x2="450" y2="218" stroke="#cbd5e1" stroke-width="3"/>'
+    svg += '<line x1="0" y1="232" x2="450" y2="232" stroke="#cbd5e1" stroke-width="3"/>'
+    svg += '<text x="15" y="210" fill="#f59e0b" font-size="11" font-weight="bold">תוואי מסילת רק"ל</text>'
+
+    # כבילה עילית
+    if has_overhead_cable:
+        svg += '<line x1="20" y1="50" x2="430" y2="400" stroke="#f97316" stroke-dasharray="6,4" stroke-width="2.5"/>'
+        svg += '<text x="25" y="45" fill="#f97316" font-size="11" font-weight="bold">תוואי כבילה עילית זמנית</text>'
+
+    # מיקומי עוגן לכל זרוע בצומת (X, Y)
+    anchors = {
+        "צפון": {"x": 225, "y": 100, "dx": 0, "dy": -40},
+        "דרום": {"x": 225, "y": 350, "dx": 0, "dy": 40},
+        "מזרח": {"x": 350, "y": 225, "dx": 40, "dy": 0},
+        "מערב": {"x": 100, "y": 225, "dx": -40, "dy": 0}
+    }
+
+    for arm_name, config in arm_settings.items():
+        if arm_name not in anchors:
+            continue
+        
+        ax = anchors[arm_name]["x"]
+        ay = anchors[arm_name]["y"]
+        dx = anchors[arm_name]["dx"]
+        dy = anchors[arm_name]["dy"]
+
+        # מעבר חצייה
+        if config.get("crosswalk"):
+            if arm_name in ["צפון", "דרום"]:
+                svg += f'<rect x="{ax-45}" y="{ay}" width="90" height="15" fill="none" stroke="#ffffff" stroke-width="2"/>'
+                for offset in range(-40, 50, 15):
+                    svg += f'<rect x="{ax+offset}" y="{ay+2}" width="8" height="11" fill="#ffffff"/>'
+            else:
+                svg += f'<rect x="{ax}" y="{ay-45}" width="15" height="90" fill="none" stroke="#ffffff" stroke-width="2"/>'
+                for offset in range(-40, 50, 15):
+                    svg += f'<rect x="{ax+2}" y="{ay+offset}" width="11" height="8" fill="#ffffff"/>'
+
+        # פנס תנועה לרכב
+        status_car = config.get("car_light")
+        if status_car != "ללא":
+            if status_car == "חדש / הוזז":
+                # עמוד ישן
+                svg += f'<circle cx="{ax}" cy="{ay}" r="7" fill="#ef4444" opacity="0.6"/>'
+                # עמוד חדש + חץ
+                svg += f'<circle cx="{ax+dx}" cy="{ay+dy}" r="8" fill="#22c55e" stroke="#ffffff" stroke-width="1.5"/>'
+                svg += f'<line x1="{ax}" y1="{ay}" x2="{ax+dx}" y2="{ay+dy}" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)"/>'
+                svg += f'<text x="{ax+dx+10}" y="{ay+dy+4}" fill="#22c55e" font-size="10">פנס רכב הוזז</text>'
+            elif status_car == "מבוטל":
+                svg += f'<circle cx="{ax}" cy="{ay}" r="7" fill="#94a3b8"/>'
+                svg += f'<line x1="{ax-8}" y1="{ay-8}" x2="{ax+8}" y2="{ay+8}" stroke="#ef4444" stroke-width="2.5"/>'
+                svg += f'<line x1="{ax-8}" y1="{ay+8}" x2="{ax+8}" y2="{ay-8}" stroke="#ef4444" stroke-width="2.5"/>'
+            else: # קיים
+                svg += f'<circle cx="{ax}" cy="{ay}" r="7" fill="#22c55e" stroke="#ffffff" stroke-width="1"/>'
+
+        # פנס רכבת קלה (רק"ל)
+        status_lrt = config.get("lrt_light")
+        if status_lrt != "ללא":
+            lx, ly = ax + 20, ay + 20
+            if status_lrt == "חדש / הוזז":
+                svg += f'<rect x="{lx-6}" y="{ly-6}" width="12" height="12" fill="#ef4444" opacity="0.6"/>'
+                svg += f'<rect x="{lx+dx-6}" y="{ly+dy-6}" width="12" height="12" fill="#3b82f6" stroke="#ffffff" stroke-width="1.5"/>'
+                svg += f'<line x1="{lx}" y1="{ly}" x2="{lx+dx}" y2="{ly+dy}" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)"/>'
+                svg += f'<text x="{lx+dx+12}" y="{ly+dy+4}" fill="#3b82f6" font-size="10">פנס רק"ל חדש</text>'
+            elif status_lrt == "מבוטל":
+                svg += f'<rect x="{lx-6}" y="{ly-6}" width="12" height="12" fill="#94a3b8"/>'
+                svg += f'<line x1="{lx-8}" y1="{ly-8}" x2="{lx+8}" y2="{ly+8}" stroke="#ef4444" stroke-width="2.5"/>'
+            else:
+                svg += f'<rect x="{lx-6}" y="{ly-6}" width="12" height="12" fill="#3b82f6" stroke="#ffffff" stroke-width="1"/>'
+
+        # פנס הולכי רגל
+        status_ped = config.get("ped_light")
+        if status_ped != "ללא":
+            px, py = ax - 25, ay - 25
+            if status_ped == "חדש / הוזז":
+                svg += f'<circle cx="{px}" cy="{py}" r="5" fill="#ef4444" opacity="0.6"/>'
+                svg += f'<circle cx="{px+dx}" cy="{py+dy}" r="6" fill="#a855f7" stroke="#ffffff" stroke-width="1"/>'
+                svg += f'<line x1="{px}" y1="{py}" x2="{px+dx}" y2="{py+dy}" stroke="#38bdf8" stroke-width="1.5" marker-end="url(#arrow)"/>'
+            elif status_ped == "מבוטל":
+                svg += f'<circle cx="{px}" cy="{py}" r="5" fill="#94a3b8"/>'
+                svg += f'<line x1="{px-6}" y1="{px-6}" x2="{px+6}" y2="{px+6}" stroke="#ef4444" stroke-width="2"/>'
+            else:
+                svg += f'<circle cx="{px}" cy="{py}" r="5" fill="#a855f7" stroke="#ffffff" stroke-width="1"/>'
+
+    # מקרא תרשים
+    svg += """
+    <rect x="10" y="370" width="160" height="70" fill="#0f172a" rx="5" opacity="0.9"/>
+    <circle cx="25" cy="385" r="5" fill="#22c55e"/>
+    <text x="38" y="389" fill="#ffffff" font-size="9">פנס רכב (ירוק)</text>
+    <rect x="20" y="398" width="10" height="10" fill="#3b82f6"/>
+    <text x="38" y="407" fill="#ffffff" font-size="9">פנס רק"ל (כחול)</text>
+    <line x1="20" y1="422" x2="32" y2="422" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="38" y="425" fill="#38bdf8" font-size="9">תוואי העתקת פנס</text>
+    """
+
+    svg += "</svg>"
+    return svg
 
 def generate_pdf(report_num, site_title, junction_name, inspector, license_no, permit_no, date_str, work_type, notes, photo_sections):
     buffer = io.BytesIO()
@@ -365,9 +494,9 @@ with col1:
 with col2:
     date_val = st.date_input("תאריך הבדיקה")
     
-    # 📌 תיקון הניסוח למניעת היפוך כיווניות בדפדפן
     work_type_options = [
         "הסדר תנועה זמני", 
+        "רכבת קלה / העתקת פנסים ורמזורים",
         "הקמת צומת", 
         "הקמת צומת חדשה", 
         "החלפת מנגנון",
@@ -390,6 +519,44 @@ with col2:
         final_work_type = selected_work_type
 
 notes = st.text_area("הערות מפקח, מפגעים ודגשים", placeholder="רשום הערות הנדסיות כאן...", height=100)
+
+# --- מחולל סקיצת צומת (אופציונלי / מופעל אוטומטית ברכבת קלה) ---
+st.markdown('<div class="section-title">📐 מחולל סקיצת צומת והעתקת תשתיות</div>', unsafe_allow_html=True)
+
+show_sketch = st.checkbox("פתח מחולל סקיצה דינמי לצומת", value=(selected_work_type == "רכבת קלה / העתקת פנסים ורמזורים"))
+
+if show_sketch:
+    st.caption("הגדר את פרטי הצומת והעתקת הפנסים. הסקיצה תיווצר בלייב ברמת וקטור (SVG) ללא תפיסת נפח בשרת.")
+    
+    sk_col1, sk_col2 = st.columns([1, 1])
+    
+    with sk_col1:
+        j_type = st.selectbox("סוג מבנה הצומת", ["צומת X (4 זרועות)", "צומת T (3 זרועות - ללא צפון)", "קטע כביש ישר / חציית מסילה"])
+        has_overhead = st.checkbox("קיימת כבילה עילית זמנית (הזנה עילית)", value=True)
+        
+        status_opts = ["ללא", "קיים / ללא שינוי", "חדש / הוזז", "מבוטל"]
+        
+        arm_settings = {}
+        arms = ["דרום", "צפון", "מזרח", "מערב"] if j_type == "צומת X (4 זרועות)" else ["דרום", "מזרח", "מערב"]
+        
+        for arm in arms:
+            with st.expander(f"🚦 הגדרות זרוע {arm}", expanded=(arm == "דרום")):
+                car_l = st.selectbox(f"פנס תנועה לרכב ({arm})", status_opts, index=2 if arm == "דרום" else 1, key=f"car_{arm}")
+                lrt_l = st.selectbox(f"פנס רכבת קלה ({arm})", status_opts, index=2 if arm == "דרום" else 0, key=f"lrt_{arm}")
+                ped_l = st.selectbox(f"פנס הולכי רגל ({arm})", status_opts, index=1, key=f"ped_{arm}")
+                cross = st.checkbox(f"מעבר חצייה ({arm})", value=True, key=f"cross_{arm}")
+                
+                arm_settings[arm] = {
+                    "car_light": car_l,
+                    "lrt_light": lrt_l,
+                    "ped_light": ped_l,
+                    "crosswalk": cross
+                }
+
+    with sk_col2:
+        st.markdown("##### 🎨 תצוגה מקדימה של הסקיצה (SVG)")
+        svg_code = generate_junction_svg(j_type, has_overhead, arm_settings)
+        components.html(svg_code, height=460)
 
 st.markdown('<div class="section-title">📸 העלאת תמונות ותיאורים</div>', unsafe_allow_html=True)
 
