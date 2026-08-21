@@ -93,10 +93,8 @@ FONT_BOLD_NAME = 'HebrewFont-Bold'
 def setup_hebrew_fonts():
     font_reg_path = "Rubik-Regular.ttf"
     font_bold_path = "Rubik-Bold.ttf"
-
     url_reg = "https://raw.githubusercontent.com/google/fonts/main/ofl/rubik/Rubik%5Bwght%5D.ttf"
     url_bold = "https://raw.githubusercontent.com/google/fonts/main/ofl/rubik/Rubik-Bold.ttf"
-
     if not os.path.exists(font_reg_path):
         try:
             req = urllib.request.Request(url_reg, headers={'User-Agent': 'Mozilla/5.0'})
@@ -104,7 +102,6 @@ def setup_hebrew_fonts():
                 out_file.write(response.read())
         except Exception:
             pass
-
     if not os.path.exists(font_bold_path):
         try:
             req = urllib.request.Request(url_bold, headers={'User-Agent': 'Mozilla/5.0'})
@@ -112,7 +109,6 @@ def setup_hebrew_fonts():
                 out_file.write(response.read())
         except Exception:
             pass
-
     try:
         if os.path.exists(font_reg_path):
             pdfmetrics.registerFont(TTFont(FONT_NAME, font_reg_path))
@@ -166,7 +162,6 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
         topMargin=1.5 * cm,
         bottomMargin=2.0 * cm
     )
-
     styles = getSampleStyleSheet()
     
     style_header_title = ParagraphStyle('HeaderTitle', fontName=FONT_BOLD_NAME, fontSize=16, leading=20, textColor=colors.white, alignment=1)
@@ -179,13 +174,11 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
     style_sec_header = ParagraphStyle('SecHeader', fontName=FONT_BOLD_NAME, fontSize=11, leading=14, textColor=colors.HexColor("#0f172a"), alignment=2)
     style_caption = ParagraphStyle('Caption', fontName=FONT_NAME, fontSize=8.5, leading=11, textColor=colors.HexColor("#475569"), alignment=1)
     style_table_header = ParagraphStyle('TableHeader', fontName=FONT_BOLD_NAME, fontSize=9.5, leading=13, textColor=colors.HexColor("#0f172a"), alignment=1)
-
+    
     story = []
-
     title_line1 = heb("ד.ד מהנדסים בע''מ") + " - D.D. ENGINEERS LTD"
     title_line2 = heb(f'דו"ח פיקוח ואכיפת הסדרי תנועה מס\' {report_num}')
     title_line3 = heb("מסמך פיקוח שטח רשמי")
-
     header_data = [
         [Paragraph(title_line1, style_header_title)],
         [Paragraph(title_line2, style_header_sub)],
@@ -202,18 +195,16 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
     ]))
     story.append(header_table)
     story.append(Spacer(1, 0.4 * cm))
-
     story.append(Paragraph(heb(f"שם האתר / פרויקט: {site_title}"), style_proj_title))
     story.append(Spacer(1, 0.2 * cm))
-
+    
     insp_str = f"מפקח: {inspector}"
     if license_no and license_no.strip():
         insp_str += f" (רישיון: {license_no.strip()})"
-
     work_type_str = f"סוג עבודה: {work_type}"
     if permit_no and permit_no.strip():
         work_type_str += f" | היתר: {permit_no.strip()}"
-
+        
     info_data = [
         [Paragraph(heb(insp_str), style_cell_label), Paragraph(heb(f"צומת / מיקום: {junction_name}"), style_cell_label)],
         [Paragraph(heb(work_type_str), style_cell_label), Paragraph(heb(f"תאריך: {date_str}"), style_cell_label)]
@@ -229,7 +220,6 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
     ]))
     story.append(info_table)
     story.append(Spacer(1, 0.4 * cm))
-
     story.append(Paragraph(heb("הערות, ממצאים והנחיות מפקח:"), style_notes_title))
     story.append(Spacer(1, 0.1 * cm))
     
@@ -246,12 +236,11 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
     ]))
     story.append(notes_table)
     story.append(Spacer(1, 0.5 * cm))
-
+    
     # --- הוספת סקיצת רכבת קלה ---
     if lr_svg and lr_arm_settings:
         story.append(Paragraph(heb('סקיצה הנדסית - צומת רכבת קלה (רק"ל):'), style_notes_title))
         story.append(Spacer(1, 0.2 * cm))
-
         try:
             svg_bytes = io.BytesIO(lr_svg.encode('utf-8'))
             drawing = svg2rlg(svg_bytes)
@@ -262,7 +251,6 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
             story.append(Spacer(1, 0.3 * cm))
         except Exception:
             pass
-
         table_data = [[
             Paragraph(heb("הולכי רגל"), style_table_header),
             Paragraph(heb("מעבר חצייה"), style_table_header),
@@ -272,12 +260,10 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
             Paragraph(heb('פ"ת'), style_table_header),
             Paragraph(heb("זרוע"), style_table_header)
         ]]
-
         for d, data in lr_arm_settings.items():
             pole_str = data["pole_type"]
             if data["traffic_dir"] == "דו-כיווני (לשני הצדדים)":
                 pole_str += f" / {data['pole_type_opp']}"
-
             table_data.append([
                 Paragraph(heb(data["pedestrian"]), style_caption),
                 Paragraph(heb("כן" if data["crosswalk"] else "לא"), style_caption),
@@ -287,7 +273,6 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
                 Paragraph(heb(data["traffic_light"]), style_caption),
                 Paragraph(heb(d), style_caption)
             ])
-
         lr_table = Table(table_data, colWidths=[2.5 * cm, 2.0 * cm, 2.5 * cm, 3.0 * cm, 2.8 * cm, 2.7 * cm, 2.5 * cm])
         lr_table.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#e2e8f0')),
@@ -299,14 +284,13 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
         ]))
         story.append(lr_table)
         story.append(Spacer(1, 0.5 * cm))
-
+        
     # --- הוספת תמונות ---
     for section in photo_sections:
         files = section.get("files")
         captions = section.get("captions", [])
         if not files:
             continue
-
         sec_title_data = [[Paragraph(heb(section['title_he']), style_sec_header)]]
         sec_title_table = Table(sec_title_data, colWidths=[18 * cm])
         sec_title_table.setStyle(TableStyle([
@@ -316,7 +300,6 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
             ('BOTTOMPADDING', (0,0), (-1,-1), 5),
             ('RIGHTPADDING', (0,0), (-1,-1), 8),
         ]))
-
         photo_cells = []
         for i, f in enumerate(files):
             try:
@@ -325,7 +308,6 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
                 img_temp = io.BytesIO()
                 img.save(img_temp, format="JPEG", quality=90)
                 img_temp.seek(0)
-
                 rl_img = RLImage(img_temp, width=8.2 * cm, height=5.5 * cm)
                 
                 custom_cap = captions[i].strip() if i < len(captions) and captions[i].strip() else f"תמונה #{i+1}"
@@ -335,14 +317,12 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
                 photo_cells.append(cell_content)
             except Exception:
                 continue
-
         grid_rows = []
         for i in range(0, len(photo_cells), 2):
             if i + 1 < len(photo_cells):
                 grid_rows.append([photo_cells[i+1], photo_cells[i]])
             else:
                 grid_rows.append(["", photo_cells[i]])
-
         if grid_rows:
             grid_table = Table(grid_rows, colWidths=[9 * cm, 9 * cm])
             grid_table.setStyle(TableStyle([
@@ -352,13 +332,12 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
             ]))
             story.append(KeepTogether([sec_title_table, Spacer(1, 0.2 * cm), grid_table]))
             story.append(Spacer(1, 0.3 * cm))
-
+            
     sig_text = f"שם המפקח: {inspector}"
     if license_no and license_no.strip():
         sig_text += f" | מס' רישיון: {license_no.strip()}"
     if permit_no and permit_no.strip():
         sig_text += f" | היתר עבודה: {permit_no.strip()}"
-
     sig_data = [
         [Paragraph(heb(f"תאריך: {date_str}"), style_cell_label), Paragraph(heb(sig_text), style_cell_label)],
         ["", Paragraph(heb("חתימת המפקח: _______________________"), style_cell_label)]
@@ -369,14 +348,11 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
         ('BOTTOMPADDING', (0,0), (-1,-1), 5),
     ]))
     story.append(KeepTogether([Spacer(1, 0.5 * cm), sig_table]))
-
     doc.build(story, canvasmaker=NumberedCanvas)
     buffer.seek(0)
     return buffer.getvalue()
 
-
 # --- UI ---
-
 st.markdown("""
     <style>
     .stApp { background-color: #e2e8f0; }
@@ -409,7 +385,6 @@ current_num = get_next_report_number()
 st.info(f'📌 **מספר הדו"ח המיועד להפקה הבאה:** #{current_num}')
 
 st.markdown('<div class="section-title">📋 פרטי האתר והמפקח</div>', unsafe_allow_html=True)
-
 col1, col2 = st.columns(2)
 with col1:
     site_name = st.text_input("שם האתר / פרויקט", "פרויקט מרכז 1")
@@ -450,21 +425,16 @@ notes = st.text_area("הערות מפקח, מפגעים ודגשים", placehold
 # --- מחולל סקיצת רכבת קלה ---
 full_svg = None
 arm_settings = {}
-
 if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
     st.markdown('<div class="section-title">🚃 מחולל סקיצה דינמי - רכבת קלה</div>', unsafe_allow_html=True)
     
     toggle_sketch = st.checkbox('הצג מחולל סקיצת צומת רק"ל', value=True)
-
     if toggle_sketch:
         col_sketch_l, col_sketch_r = st.columns([1, 1])
-
         with col_sketch_l:
             junction_type = st.selectbox("סוג מבנה הצומת", ["(זרועות 4) X צומת", "(זרועות 3) T צומת"])
             has_temp_cable = st.checkbox("קיימת כבילה עילית זמנית (הזנה עילית)", value=True)
-
             directions = ["צפון", "דרום", "מזרח", "מערב"] if "4" in junction_type else ["צפון", "דרום", "מזרח"]
-
             for d in directions:
                 with st.expander(f"🚦 הגדרות זרוע {d}"):
                     traffic_light = st.selectbox(f'פ"ת לרכב ({d})', ["קיים / ללא שינוי", "חדש", "מבוטל", "ללא"], key=f"tl_{d}")
@@ -474,12 +444,10 @@ if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
                     pole_type_opp = "ללא עמוד"
                     if traffic_dir == "דו-כיווני (לשני הצדדים)":
                         pole_type_opp = st.selectbox(f"סוג עמוד נגדי בצומת ({d})", ["עמוד מתכת", "עמוד עץ", "ללא עמוד"], key=f"pole_opp_{d}")
-
                     pole_pos = st.selectbox(f"מיקום עמוד ({d})", ["צד ימין", "צד שמאל", "אי תנועה מרכזי"], key=f"pos_{d}")
                     light_rail = st.selectbox(f"פנס רכבת קלה ({d})", ["ללא", "קיים / ללא שינוי", "חדש", "מבוטל"], key=f"lr_{d}")
                     pedestrian = st.selectbox(f"פנס הולכי רגל ({d})", ["קיים / ללא שינוי", "חדש", "מבוטל", "ללא"], key=f"ped_{d}")
                     crosswalk = st.checkbox(f"מעבר חצייה ({d})", value=True, key=f"cw_{d}")
-
                     arm_settings[d] = {
                         "traffic_light": traffic_light,
                         "traffic_dir": traffic_dir,
@@ -490,7 +458,7 @@ if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
                         "pedestrian": pedestrian,
                         "crosswalk": crosswalk
                     }
-
+                    
         # בנאי ה-SVG
         svg_elements = []
         svg_elements.append('<rect width="500" height="500" fill="#1e1e24" />')
@@ -501,24 +469,22 @@ if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
         svg_elements.append('<rect x="0" y="240" width="500" height="20" fill="#4a4a5a" />')
         svg_elements.append('<line x1="0" y1="245" x2="500" y2="245" stroke="#a6a6b8" stroke-width="2" />')
         svg_elements.append('<line x1="0" y1="255" x2="500" y2="255" stroke="#a6a6b8" stroke-width="2" />')
-
+        
         # נתיבים
         svg_elements.append('<line x1="250" y1="0" x2="250" y2="180" stroke="#f1c40f" stroke-width="2" stroke-dasharray="8,8" />')
         svg_elements.append('<line x1="250" y1="320" x2="250" y2="500" stroke="#f1c40f" stroke-width="2" stroke-dasharray="8,8" />')
-
         if has_temp_cable:
             svg_elements.append('<line x1="30" y1="30" x2="470" y2="470" stroke="#e67e22" stroke-width="3" stroke-dasharray="6,6" />')
-
+            
         arm_coords = {
             "צפון": {"cw_x": 180, "cw_y": 150, "cw_w": 140, "cw_h": 20, "right_x": 295, "left_x": 205, "y": 135, "ped_left_x": 190, "ped_right_x": 310, "ped_y": 160},
             "דרום": {"cw_x": 180, "cw_y": 330, "cw_w": 140, "cw_h": 20, "right_x": 205, "left_x": 295, "y": 365, "ped_left_x": 190, "ped_right_x": 310, "ped_y": 340},
             "מזרח": {"cw_x": 330, "cw_y": 180, "cw_w": 20, "cw_h": 140, "right_x": 365, "left_x": 365, "y_right": 195, "y_left": 305, "ped_x": 340, "ped_top_y": 190, "ped_bot_y": 310},
             "מערב": {"cw_x": 150, "cw_y": 180, "cw_w": 20, "cw_h": 140, "right_x": 135, "left_x": 135, "y_right": 305, "y_left": 195, "ped_x": 160, "ped_top_y": 190, "ped_bot_y": 310}
         }
-
+        
         for d, data in arm_settings.items():
             ac = arm_coords[d]
-
             if data["crosswalk"]:
                 svg_elements.append(f'<rect x="{ac["cw_x"]}" y="{ac["cw_y"]}" width="{ac["cw_w"]}" height="{ac["cw_h"]}" fill="#1e1e24" />')
                 if d in ["צפון", "דרום"]:
@@ -527,7 +493,6 @@ if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
                 else:
                     for i in range(0, ac["cw_h"], 14):
                         svg_elements.append(f'<rect x="{ac["cw_x"]}" y="{ac["cw_y"] + i}" width="{ac["cw_w"]}" height="8" fill="#ffffff" />')
-
             if d in ["צפון", "דרום"]:
                 pos_x = ac["right_x"] if data["pole_pos"] == "צד ימין" else (ac["left_x"] if data["pole_pos"] == "צד שמאל" else 250)
                 pos_y = ac["y"]
@@ -538,32 +503,30 @@ if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
                 pos_y = ac["y_right"] if data["pole_pos"] == "צד ימין" else (ac["y_left"] if data["pole_pos"] == "צד שמאל" else 250)
                 opp_x = pos_x
                 opp_y = ac["y_left"] if data["pole_pos"] == "צד ימין" else ac["y_right"]
-
+                
             # עמוד ראשי
             if data["pole_type"] == "עמוד מתכת":
                 svg_elements.append(f'<circle cx="{pos_x}" cy="{pos_y}" r="6" fill="#7f8c8d" stroke="#ffffff" stroke-width="1.5" />')
             elif data["pole_type"] == "עמוד עץ":
                 svg_elements.append(f'<circle cx="{pos_x}" cy="{pos_y}" r="6" fill="#8d6e63" stroke="#5d4037" stroke-width="1.5" />')
-
+            
             # עמוד נגדי במידה ודו-כיווני
             if data["traffic_dir"] == "דו-כיווני (לשני הצדדים)":
                 if data["pole_type_opp"] == "עמוד מתכת":
                     svg_elements.append(f'<circle cx="{opp_x}" cy="{opp_y}" r="6" fill="#7f8c8d" stroke="#ffffff" stroke-width="1.5" />')
                 elif data["pole_type_opp"] == "עמוד עץ":
                     svg_elements.append(f'<circle cx="{opp_x}" cy="{opp_y}" r="6" fill="#8d6e63" stroke="#5d4037" stroke-width="1.5" />')
-
+            
             # פ"ת ראשי
             if data["traffic_light"] != "ללא":
                 tl_color = "#00ff66" if data["traffic_light"] == "חדש" else "#2ecc71"
                 svg_elements.append(f'<circle cx="{pos_x}" cy="{pos_y-10}" r="6" fill="{tl_color}" stroke="#ffffff" stroke-width="0.5" />')
-
                 if data["traffic_dir"] == "דו-כיווני (לשני הצדדים)":
                     svg_elements.append(f'<circle cx="{opp_x}" cy="{opp_y-10}" r="6" fill="{tl_color}" stroke="#ffffff" stroke-width="0.5" />')
-
                 if data["traffic_light"] == "מבוטל":
                     svg_elements.append(f'<line x1="{pos_x-8}" y1="{pos_y-18}" x2="{pos_x+8}" y2="{pos_y-2}" stroke="#e74c3c" stroke-width="3" />')
                     svg_elements.append(f'<line x1="{pos_x+8}" y1="{pos_y-18}" x2="{pos_x-8}" y2="{pos_y-2}" stroke="#e74c3c" stroke-width="3" />')
-
+            
             # פנס רק"ל
             if data["light_rail"] != "ללא":
                 lr_color = "#00d2ff" if data["light_rail"] != "מבוטל" else "#7f8c8d"
@@ -571,7 +534,7 @@ if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
                 if data["light_rail"] == "מבוטל":
                     svg_elements.append(f'<line x1="{pos_x-6}" y1="{pos_y-24}" x2="{pos_x+6}" y2="{pos_y-12}" stroke="#e74c3c" stroke-width="2" />')
                     svg_elements.append(f'<line x1="{pos_x+6}" y1="{pos_y-24}" x2="{pos_x-6}" y2="{pos_y-12}" stroke="#e74c3c" stroke-width="2" />')
-
+            
             # פנס הולכי רגל
             if data["pedestrian"] != "ללא":
                 ped_color = "#9b59b6" if data["pedestrian"] in ["קיים / ללא שינוי", "חדש"] else "#95a5a6"
@@ -581,8 +544,8 @@ if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
                 else:
                     svg_elements.append(f'<rect x="{ac["ped_x"]}" y="{ac["ped_top_y"]}" width="8" height="8" fill="{ped_color}" stroke="#ffffff" stroke-width="1" />')
                     svg_elements.append(f'<rect x="{ac["ped_x"]}" y="{ac["ped_bot_y"]}" width="8" height="8" fill="{ped_color}" stroke="#ffffff" stroke-width="1" />')
-
-        # מקרא מפורט ומעוצב עם כיוון טקסט ישר בעברית (RTL)
+        
+        # מקרא מפורט ומעוצב עם כיוון טקסט ישר בעברית (RTL) ותמיכה בפונטים ב-PDF
         svg_elements.append('<rect x="10" y="360" width="165" height="130" fill="#111116" rx="6" stroke="#4a5568" stroke-width="1" opacity="0.95"/>')
         
         legend_items = [
@@ -594,13 +557,14 @@ if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
             ('<circle cx="22" cy="448" r="4" fill="#8d6e63" stroke="#5d4037" stroke-width="1" />', "עמוד עץ", 452),
             ('<line x1="16" y1="463" x2="28" y2="463" stroke="#e67e22" stroke-width="2" stroke-dasharray="2,2" />', "כבילה עילית", 467)
         ]
-
+        
         for icon, txt, text_y in legend_items:
             svg_elements.append(icon)
-            svg_elements.append(f'<text x="36" y="{text_y}" fill="#ffffff" font-family="Arial, sans-serif" font-size="11" font-weight="bold" direction="rtl" xml:lang="he">{txt}</text>')
-
+            # שימוש ב-heb() עבור הכיווניות ב-ReportLab, והגדרת font-family חלופי להתאמה
+            hebrew_text = heb(txt)
+            svg_elements.append(f'<text x="36" y="{text_y}" fill="#ffffff" font-family="{FONT_NAME}, Rubik, Arial, sans-serif" font-size="11" font-weight="bold">{hebrew_text}</text>')
+            
         full_svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="500" height="500">{"".join(svg_elements)}</svg>'
-
         with col_sketch_r:
             st.markdown("##### 🎨 תצוגה מקדימה של סקיצת הרק\"ל")
             st.components.v1.html(full_svg, height=520)
@@ -632,7 +596,6 @@ with col_a:
     cpu_files, cpu_caps = render_upload_section("תמונות - החלפת מעבד (CPU)", "cpu")
     cameras_files, cameras_caps = render_upload_section("תמונות - התקנת מצלמות", "cameras")
     plan_files, plan_caps = render_upload_section("צילום תוכנית / שרטוט", "plan")
-
 with col_b:
     detectors_files, detectors_caps = render_upload_section("תמונות - חריצת גלאים", "detectors")
     ups_files, ups_caps = render_upload_section("תמונות - התקנת עמדת UPS", "ups")
@@ -671,7 +634,6 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
                 {"title_he": "צילום תוכנית / שרטוט", "files": plan_files, "captions": plan_caps},
                 {"title_he": "תמונות נוספות / נספחים", "files": misc_files, "captions": misc_caps}
             ]
-
             pdf_bytes = generate_pdf(
                 report_num=report_num,
                 site_title=site_name,
@@ -686,7 +648,6 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
                 lr_svg=full_svg,
                 lr_arm_settings=arm_settings
             )
-
             st.download_button(
                 label="📥 הורד דו\"ח PDF מושלם",
                 data=pdf_bytes,
