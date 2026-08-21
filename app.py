@@ -266,7 +266,7 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
         table_data = [[
             Paragraph(heb("הולכי רגל"), style_caption),
             Paragraph(heb("מעבר חצייה"), style_caption),
-            Paragraph(heb("מיקום"), style_caption),
+            Paragraph(heb("מיקום עמוד"), style_caption),
             Paragraph(heb("סוג עמוד"), style_caption),
             Paragraph(heb("פנס רק\"ל"), style_caption),
             Paragraph(heb("פנס תנועה"), style_caption),
@@ -462,12 +462,12 @@ if selected_work_type == "עבודות רכבת קלה (רק\"ל)":
 
             for d in directions:
                 with st.expander(f"🚦 הגדרות זרוע {d}"):
-                    traffic_light = st.selectbox(f"פנס תנועה לרכב ({d})", ["קיים / ללא שינוי", "מבוטל", "חדש", "ללא"], key=f"tl_{d}")
+                    traffic_light = st.selectbox(f"פנס תנועה לרכב ({d})", ["קיים / ללא שינוי", "חדש", "מבוטל", "ללא"], key=f"tl_{d}")
                     traffic_dir = st.selectbox(f"כיוון פנס תנועה ({d})", ["נכנס לצומת", "יוצא מהצומת", "דו-כיווני (לשני הצדדים)"], key=f"tdir_{d}")
                     pole_type = st.selectbox(f"סוג עמוד ({d})", ["עמוד מתכת", "עמוד עץ", "ללא עמוד"], key=f"pole_{d}")
                     pole_pos = st.selectbox(f"מיקום עמוד ({d})", ["צד ימין", "צד שמאל", "אי תנועה מרכזי"], key=f"pos_{d}")
                     light_rail = st.selectbox(f"פנס רכבת קלה ({d})", ["ללא", "קיים / ללא שינוי", "חדש", "מבוטל"], key=f"lr_{d}")
-                    pedestrian = st.selectbox(f"פנס הולכי רגל ({d})", ["קיים / ללא שינוי", "מבוטל", "חדש", "ללא"], key=f"ped_{d}")
+                    pedestrian = st.selectbox(f"פנס הולכי רגל ({d})", ["קיים / ללא שינוי", "חדש", "מבוטל", "ללא"], key=f"ped_{d}")
                     crosswalk = st.checkbox(f"מעבר חצייה ({d})", value=True, key=f"cw_{d}")
 
                     arm_settings[d] = {
@@ -501,15 +501,16 @@ if selected_work_type == "עבודות רכבת קלה (רק\"ל)":
             svg_elements.append('<text x="40" y="25" fill="#e67e22" font-size="11" font-weight="bold">תוואי כבילה עילית זמנית</text>')
 
         arm_coords = {
-            "צפון": {"cw_x": 180, "cw_y": 150, "cw_w": 140, "cw_h": 20, "right_x": 295, "left_x": 205, "y": 135},
-            "דרום": {"cw_x": 180, "cw_y": 330, "cw_w": 140, "cw_h": 20, "right_x": 205, "left_x": 295, "y": 365},
-            "מזרח": {"cw_x": 330, "cw_y": 180, "cw_w": 20, "cw_h": 140, "right_x": 365, "left_x": 365, "y_right": 195, "y_left": 305},
-            "מערב": {"cw_x": 150, "cw_y": 180, "cw_w": 20, "cw_h": 140, "right_x": 135, "left_x": 135, "y_right": 305, "y_left": 195}
+            "צפון": {"cw_x": 180, "cw_y": 150, "cw_w": 140, "cw_h": 20, "right_x": 295, "left_x": 205, "y": 135, "ped_left_x": 190, "ped_right_x": 310, "ped_y": 160},
+            "דרום": {"cw_x": 180, "cw_y": 330, "cw_w": 140, "cw_h": 20, "right_x": 205, "left_x": 295, "y": 365, "ped_left_x": 190, "ped_right_x": 310, "ped_y": 340},
+            "מזרח": {"cw_x": 330, "cw_y": 180, "cw_w": 20, "cw_h": 140, "right_x": 365, "left_x": 365, "y_right": 195, "y_left": 305, "ped_x": 340, "ped_top_y": 190, "ped_bot_y": 310},
+            "מערב": {"cw_x": 150, "cw_y": 180, "cw_w": 20, "cw_h": 140, "right_x": 135, "left_x": 135, "y_right": 305, "y_left": 195, "ped_x": 160, "ped_top_y": 190, "ped_bot_y": 310}
         }
 
         for d, data in arm_settings.items():
             ac = arm_coords[d]
 
+            # ציור מעבר חצייה
             if data["crosswalk"]:
                 svg_elements.append(f'<rect x="{ac["cw_x"]}" y="{ac["cw_y"]}" width="{ac["cw_w"]}" height="{ac["cw_h"]}" fill="#1e1e24" />')
                 if d in ["צפון", "דרום"]:
@@ -519,30 +520,40 @@ if selected_work_type == "עבודות רכבת קלה (רק\"ל)":
                     for i in range(0, ac["cw_h"], 14):
                         svg_elements.append(f'<rect x="{ac["cw_x"]}" y="{ac["cw_y"] + i}" width="{ac["cw_w"]}" height="8" fill="#ffffff" />')
 
+            # מיקומיי עמודים ופנסי תנועה
             if d in ["צפון", "דרום"]:
                 pos_x = ac["right_x"] if data["pole_pos"] == "צד ימין" else (ac["left_x"] if data["pole_pos"] == "צד שמאל" else 250)
                 pos_y = ac["y"]
+                opp_x = ac["left_x"] if data["pole_pos"] == "צד ימין" else ac["right_x"]
+                opp_y = pos_y
             else:
                 pos_x = ac["right_x"]
                 pos_y = ac["y_right"] if data["pole_pos"] == "צד ימין" else (ac["y_left"] if data["pole_pos"] == "צד שמאל" else 250)
+                opp_x = pos_x
+                opp_y = ac["y_left"] if data["pole_pos"] == "צד ימין" else ac["y_right"]
 
+            # סוג עמוד
             if data["pole_type"] == "עמוד מתכת":
                 svg_elements.append(f'<circle cx="{pos_x}" cy="{pos_y}" r="6" fill="#7f8c8d" stroke="#ffffff" stroke-width="1.5" />')
             elif data["pole_type"] == "עמוד עץ":
                 svg_elements.append(f'<circle cx="{pos_x}" cy="{pos_y}" r="6" fill="#8d6e63" stroke="#5d4037" stroke-width="1.5" />')
 
+            # פנס תנועה לרכב (ירוק רגיל / ירוק בהיר לחדש)
             if data["traffic_light"] != "ללא":
-                tl_color = "#2ecc71"
+                tl_color = "#00ff66" if data["traffic_light"] == "חדש" else "#2ecc71"
+                
+                # ציור פנס ראשי
+                svg_elements.append(f'<circle cx="{pos_x}" cy="{pos_y-10}" r="6" fill="{tl_color}" stroke="#ffffff" stroke-width="0.5" />')
+
+                # אם נבחר דו-כיווני, מציגים פנס תנועה גם בצד השני של מעבר החצייה
                 if data["traffic_dir"] == "דו-כיווני (לשני הצדדים)":
-                    svg_elements.append(f'<circle cx="{pos_x-6}" cy="{pos_y-10}" r="5" fill="{tl_color}" />')
-                    svg_elements.append(f'<circle cx="{pos_x+6}" cy="{pos_y-10}" r="5" fill="{tl_color}" />')
-                else:
-                    svg_elements.append(f'<circle cx="{pos_x}" cy="{pos_y-10}" r="6" fill="{tl_color}" />')
+                    svg_elements.append(f'<circle cx="{opp_x}" cy="{opp_y-10}" r="6" fill="{tl_color}" stroke="#ffffff" stroke-width="0.5" />')
 
                 if data["traffic_light"] == "מבוטל":
                     svg_elements.append(f'<line x1="{pos_x-8}" y1="{pos_y-18}" x2="{pos_x+8}" y2="{pos_y-2}" stroke="#e74c3c" stroke-width="3" />')
                     svg_elements.append(f'<line x1="{pos_x+8}" y1="{pos_y-18}" x2="{pos_x-8}" y2="{pos_y-2}" stroke="#e74c3c" stroke-width="3" />')
 
+            # פנס רכבת קלה
             if data["light_rail"] != "ללא":
                 lr_color = "#00d2ff" if data["light_rail"] != "מבוטל" else "#7f8c8d"
                 svg_elements.append(f'<rect x="{pos_x-6}" y="{pos_y-24}" width="12" height="12" fill="{lr_color}" stroke="#ffffff" stroke-width="1" />')
@@ -550,23 +561,34 @@ if selected_work_type == "עבודות רכבת קלה (רק\"ל)":
                     svg_elements.append(f'<line x1="{pos_x-6}" y1="{pos_y-24}" x2="{pos_x+6}" y2="{pos_y-12}" stroke="#e74c3c" stroke-width="2" />')
                     svg_elements.append(f'<line x1="{pos_x+6}" y1="{pos_y-24}" x2="{pos_x-6}" y2="{pos_y-12}" stroke="#e74c3c" stroke-width="2" />')
 
+            # פנס הולכי רגל (מופיע משני צידי מעבר החצייה)
             if data["pedestrian"] != "ללא":
                 ped_color = "#9b59b6" if data["pedestrian"] in ["קיים / ללא שינוי", "חדש"] else "#95a5a6"
-                svg_elements.append(f'<rect x="{pos_x-4}" y="{pos_y+7}" width="8" height="8" fill="{ped_color}" stroke="#ffffff" stroke-width="1" />')
+                
+                if d in ["צפון", "דרום"]:
+                    # פנס צד שמאל ופנס צד ימין של המעבר
+                    svg_elements.append(f'<rect x="{ac["ped_left_x"]}" y="{ac["ped_y"]}" width="8" height="8" fill="{ped_color}" stroke="#ffffff" stroke-width="1" />')
+                    svg_elements.append(f'<rect x="{ac["ped_right_x"]}" y="{ac["ped_y"]}" width="8" height="8" fill="{ped_color}" stroke="#ffffff" stroke-width="1" />')
+                else:
+                    # פנס חלק עליון ופנס חלק תחתון של המעבר
+                    svg_elements.append(f'<rect x="{ac["ped_x"]}" y="{ac["ped_top_y"]}" width="8" height="8" fill="{ped_color}" stroke="#ffffff" stroke-width="1" />')
+                    svg_elements.append(f'<rect x="{ac["ped_x"]}" y="{ac["ped_bot_y"]}" width="8" height="8" fill="{ped_color}" stroke="#ffffff" stroke-width="1" />')
 
         # מקרא
-        svg_elements.append('<rect x="10" y="350" width="200" height="140" fill="#111116" rx="5" stroke="#444" opacity="0.95"/>')
-        svg_elements.append('<text x="20" y="367" fill="#f1c40f" font-size="11" font-weight="bold">מקרא סמלים:</text>')
-        svg_elements.append('<circle cx="25" cy="382" r="5" fill="#2ecc71" />')
-        svg_elements.append('<text x="40" y="385" fill="#ffffff" font-size="10">פנס תנועה לרכב (ירוק)</text>')
-        svg_elements.append('<rect x="20" y="395" width="10" height="10" fill="#00d2ff" />')
-        svg_elements.append('<text x="40" y="403" fill="#ffffff" font-size="10">פנס רק"ל (כחול)</text>')
-        svg_elements.append('<rect x="21" y="413" width="8" height="8" fill="#9b59b6" />')
-        svg_elements.append('<text x="40" y="421" fill="#ffffff" font-size="10">פנס הולכי רגל (סגול)</text>')
-        svg_elements.append('<circle cx="25" cy="435" r="4" fill="#7f8c8d" stroke="#fff" stroke-width="1" />')
-        svg_elements.append('<text x="40" y="438" fill="#ffffff" font-size="10">עמוד מתכת / עץ</text>')
-        svg_elements.append('<line x1="18" y1="452" x2="32" y2="452" stroke="#e67e22" stroke-width="2" stroke-dasharray="2,2" />')
-        svg_elements.append('<text x="40" y="455" fill="#ffffff" font-size="10">תוואי כבילה עילית</text>')
+        svg_elements.append('<rect x="10" y="340" width="210" height="150" fill="#111116" rx="5" stroke="#444" opacity="0.95"/>')
+        svg_elements.append('<text x="20" y="357" fill="#f1c40f" font-size="11" font-weight="bold">מקרא סמלים:</text>')
+        svg_elements.append('<circle cx="25" cy="372" r="5" fill="#2ecc71" />')
+        svg_elements.append('<text x="40" y="375" fill="#ffffff" font-size="10">פנס תנועה קיים</text>')
+        svg_elements.append('<circle cx="25" cy="388" r="5" fill="#00ff66" stroke="#fff" stroke-width="0.5" />')
+        svg_elements.append('<text x="40" y="391" fill="#ffffff" font-size="10">פנס תנועה חדש (ירוק בהיר)</text>')
+        svg_elements.append('<rect x="20" y="400" width="10" height="10" fill="#00d2ff" />')
+        svg_elements.append('<text x="40" y="408" fill="#ffffff" font-size="10">פנס רק"ל (כחול)</text>')
+        svg_elements.append('<rect x="21" y="417" width="8" height="8" fill="#9b59b6" />')
+        svg_elements.append('<text x="40" y="425" fill="#ffffff" font-size="10">פנס הולכי רגל (משני צידי מעבר)</text>')
+        svg_elements.append('<circle cx="25" cy="437" r="4" fill="#7f8c8d" stroke="#fff" stroke-width="1" />')
+        svg_elements.append('<text x="40" y="440" fill="#ffffff" font-size="10">עמוד מתכת / עץ</text>')
+        svg_elements.append('<line x1="18" y1="454" x2="32" y2="454" stroke="#e67e22" stroke-width="2" stroke-dasharray="2,2" />')
+        svg_elements.append('<text x="40" y="457" fill="#ffffff" font-size="10">תוואי כבילה עילית</text>')
 
         full_svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="500" height="500">{"".join(svg_elements)}</svg>'
 
