@@ -16,7 +16,6 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from svglib.svglib import svg2rlg
 
 # --- הגדרת תצורת עמוד ב-Streamlit ---
 st.set_page_config(page_title="דו\"ח מפקח הסדר תנועה - ד.ד מהנדסים בע''מ", page_icon="🚦", layout="centered")
@@ -241,7 +240,6 @@ def generate_junction_svg(junction_type, has_overhead_cable, arm_settings):
         
         status_car = config.get("car_light")
         if status_car != "ללא":
-            # ציור עמוד
             svg += f'<circle cx="{px}" cy="{py}" r="6" fill="{pole_color}" stroke="#ffffff" stroke-width="1"/>'
             
             if status_car == "חדש / הוזז":
@@ -287,7 +285,7 @@ def generate_junction_svg(junction_type, has_overhead_cable, arm_settings):
     svg += "</svg>"
     return svg
 
-def generate_pdf(report_num, site_title, junction_name, inspector, license_no, permit_no, date_str, work_type, notes, photo_sections, svg_code=None):
+def generate_pdf(report_num, site_title, junction_name, inspector, license_no, permit_no, date_str, work_type, notes, photo_sections):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -376,28 +374,6 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
     ]))
     story.append(notes_table)
     story.append(Spacer(1, 0.5 * cm))
-
-    # שילוב סקיצת SVG במידה וקיימת
-    if svg_code:
-        try:
-            svg_io = io.BytesIO(svg_code.encode('utf-8'))
-            drawing = svg2rlg(svg_io)
-            if drawing:
-                drawing.width = 14 * cm
-                drawing.height = 14 * cm
-                drawing.scale(14 * cm / drawing.width, 14 * cm / drawing.height)
-                
-                sketch_title = Table([[Paragraph(heb("סקיצת צומת והעתקת פנסים/תשתיות:"), style_sec_header)]], colWidths=[18 * cm])
-                sketch_title.setStyle(TableStyle([
-                    ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#cbd5e1")),
-                    ('LINELEFT', (0,0), (0,-1), 3, colors.HexColor("#182b49")),
-                    ('TOPPADDING', (0,0), (-1,-1), 5),
-                    ('BOTTOMPADDING', (0,0), (-1,-1), 5),
-                ]))
-                story.append(KeepTogether([sketch_title, Spacer(1, 0.2 * cm), drawing]))
-                story.append(Spacer(1, 0.5 * cm))
-        except Exception:
-            pass
 
     for section in photo_sections:
         files = section.get("files")
@@ -553,7 +529,7 @@ show_sketch = st.checkbox("פתח מחולל סקיצה דינמי לצומת", 
 generated_svg_code = None
 
 if show_sketch:
-    st.caption("הגדר את פרטי הצומת והעתקת הפנסים. הסקיצה תיווצר בלייב ותצורף לדו\"ח ה-PDF ולענן.")
+    st.caption("הגדר את פרטי הצומת והעתקת הפנסים. הסקיצה תיווצר בלייב ותוכל להוריד אותה בנפרד לענן.")
     
     sk_col1, sk_col2 = st.columns([1, 1])
     
@@ -678,8 +654,7 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
                         date_str=str(date_val),
                         work_type=final_work_type,
                         notes=notes,
-                        photo_sections=photo_sections,
-                        svg_code=generated_svg_code if show_sketch else None
+                        photo_sections=photo_sections
                     )
                     
                     st.session_state['pdf_bytes'] = pdf_bytes
