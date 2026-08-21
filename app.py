@@ -129,11 +129,9 @@ class NumberedCanvas(canvas.Canvas):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._saved_page_states = []
-
     def showPage(self):
         self._saved_page_states.append(dict(self.__dict__))
         self._startPage()
-
     def save(self):
         num_pages = len(self._saved_page_states)
         for state in self._saved_page_states:
@@ -141,7 +139,6 @@ class NumberedCanvas(canvas.Canvas):
             self.draw_page_number(num_pages)
             super().showPage()
         super().save()
-
     def draw_page_number(self, page_count):
         self.saveState()
         self.setFont(FONT_NAME, 8)
@@ -251,6 +248,7 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
             pass
             
         table_data = [[
+            Paragraph(heb("כיווני נסיעה"), style_table_header),
             Paragraph(heb("הולכי רגל"), style_table_header),
             Paragraph(heb("מעבר חצייה"), style_table_header),
             Paragraph(heb("מיקום עמוד"), style_table_header),
@@ -260,12 +258,10 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
             Paragraph(heb("זרוע"), style_table_header)
         ]]
         
-        # פונקציות עזר להוספת אייקונים צבעוניים לטבלה
         def get_ped_str(val):
             if val in ["קיים / ללא שינוי", "חדש"]:
                 return f'<font color="#9b59b6">■</font> {val}'
             return val
-
         def get_pole_str(data):
             p1 = data["pole_type"]
             res = p1
@@ -283,14 +279,12 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
                     p2_str = f'<font color="#8d6e63">●</font> {p2}'
                 res += f" / {p2_str}"
             return res
-
         def get_lr_str(val):
             if val == "חדש" or val == "קיים / ללא שינוי":
                 return f'<font color="#00d2ff">■</font> {val}'
             elif val == "מבוטל":
                 return f'<font color="#7f8c8d">■</font> {val}'
             return val
-
         def get_tl_str(val):
             if val == "חדש":
                 return f'<font color="#00ff66">●</font> {val}'
@@ -299,9 +293,9 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
             elif val == "מבוטל":
                 return f'<font color="#e74c3c">✖</font> {val}'
             return val
-
         for d, data in lr_arm_settings.items():
             table_data.append([
+                Paragraph(heb(data.get("lane_dir", "ישר בלבד")), style_caption),
                 Paragraph(heb(get_ped_str(data["pedestrian"])), style_caption),
                 Paragraph(heb("כן" if data["crosswalk"] else "לא"), style_caption),
                 Paragraph(heb(data["pole_pos"]), style_caption),
@@ -311,7 +305,7 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
                 Paragraph(heb(d), style_caption)
             ])
             
-        lr_table = Table(table_data, colWidths=[2.5 * cm, 2.0 * cm, 2.5 * cm, 3.0 * cm, 2.8 * cm, 2.7 * cm, 2.5 * cm])
+        lr_table = Table(table_data, colWidths=[2.2 * cm, 2.3 * cm, 1.8 * cm, 2.3 * cm, 2.7 * cm, 2.4 * cm, 2.3 * cm, 2.0 * cm])
         lr_table.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#e2e8f0')),
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
@@ -375,7 +369,7 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
     if license_no and license_no.strip():
         sig_text += f" | מס' רישיון: {license_no.strip()}"
     if permit_no and permit_no.strip():
-        sig_text += f" | היתר עבודה: {permit_no.strip()}"
+        sig_text += f" | היתר: {permit_no.strip()}"
     sig_data = [
         [Paragraph(heb(f"תאריך: {date_str}"), style_cell_label), Paragraph(heb(sig_text), style_cell_label)],
         ["", Paragraph(heb("חתימת המפקח: _______________________"), style_cell_label)]
@@ -423,13 +417,15 @@ current_num = get_next_report_number()
 st.info(f'📌 **מספר הדו"ח המיועד להפקה הבאה:** #{current_num}')
 
 st.markdown('<div class="section-title">📋 פרטי האתר והמפקח</div>', unsafe_allow_html=True)
+
 col1, col2 = st.columns(2)
 with col1:
     site_name = st.text_input("שם האתר / פרויקט", "פרויקט מרכז 1")
     junction_name = st.text_input("שם הצומת / מיקום", "צומת הרצל - ז'בוטינסקי")
     inspector_name = st.text_input("שם המפקח", "נתנאל עוז")
     license_no = st.text_input("מספר רישיון / מ.פ (רשות)", "1015546")
-    permit_no = st.text_input("מספר היתר עבודה (רשות)", placeholder="לדוגמה: H-2026-99")
+    # התווית עודכנה ל-"מספר היתר (רשות)"
+    permit_no = st.text_input("מספר היתר (רשות)", placeholder="לדוגמה: H-2026-99")
 
 with col2:
     date_val = st.date_input("תאריך הבדיקה")
@@ -463,6 +459,7 @@ notes = st.text_area("הערות מפקח, מפגעים ודגשים", placehold
 # --- מחולל סקיצת רכבת קלה ---
 full_svg = None
 arm_settings = {}
+
 if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
     st.markdown('<div class="section-title">🚃 מחולל סקיצה דינמי - רכבת קלה</div>', unsafe_allow_html=True)
     
@@ -473,8 +470,10 @@ if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
             junction_type = st.selectbox("סוג מבנה הצומת", ["(זרועות 4) X צומת", "(זרועות 3) T צומת"])
             has_temp_cable = st.checkbox("קיימת כבילה עילית זמנית (הזנה עילית)", value=True)
             directions = ["צפון", "דרום", "מזרח", "מערב"] if "4" in junction_type else ["צפון", "דרום", "מזרח"]
+            
             for d in directions:
                 with st.expander(f"🚦 הגדרות זרוע {d}"):
+                    lane_dir = st.selectbox(f'כיוון נסיעה מותר ({d})', ["ישר ימינה", "ישר בלבד", "שמאלה בלבד", "כל הכיוונים"], key=f"ldir_{d}")
                     traffic_light = st.selectbox(f'פ"ת לרכב ({d})', ["קיים / ללא שינוי", "חדש", "מבוטל", "ללא"], key=f"tl_{d}")
                     traffic_dir = st.selectbox(f'כיוון פ"ת ({d})', ["נכנס לצומת", "יוצא מהצומת", "דו-כיווני (לשני הצדדים)"], key=f"tdir_{d}")
                     pole_type = st.selectbox(f"סוג עמוד ראשי ({d})", ["עמוד מתכת", "עמוד עץ", "ללא עמוד"], key=f"pole_{d}")
@@ -486,7 +485,9 @@ if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
                     light_rail = st.selectbox(f"פנס רכבת קלה ({d})", ["ללא", "קיים / ללא שינוי", "חדש", "מבוטל"], key=f"lr_{d}")
                     pedestrian = st.selectbox(f"פנס הולכי רגל ({d})", ["קיים / ללא שינוי", "חדש", "מבוטל", "ללא"], key=f"ped_{d}")
                     crosswalk = st.checkbox(f"מעבר חצייה ({d})", value=True, key=f"cw_{d}")
+                    
                     arm_settings[d] = {
+                        "lane_dir": lane_dir,
                         "traffic_light": traffic_light,
                         "traffic_dir": traffic_dir,
                         "pole_type": pole_type,
@@ -497,7 +498,7 @@ if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
                         "crosswalk": crosswalk
                     }
                     
-        # בנאי ה-SVG (ללא קופסת מקרא מובנית בתוך ה-SVG)
+        # בנאי ה-SVG כולל כיווני נסיעה
         svg_elements = []
         svg_elements.append('<rect width="500" height="500" fill="#1e1e24" />')
         svg_elements.append('<rect x="180" y="0" width="140" height="500" fill="#2c2c34" />')
@@ -515,14 +516,20 @@ if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
             svg_elements.append('<line x1="30" y1="30" x2="470" y2="470" stroke="#e67e22" stroke-width="3" stroke-dasharray="6,6" />')
             
         arm_coords = {
-            "צפון": {"cw_x": 180, "cw_y": 150, "cw_w": 140, "cw_h": 20, "right_x": 295, "left_x": 205, "y": 135, "ped_left_x": 190, "ped_right_x": 310, "ped_y": 160},
-            "דרום": {"cw_x": 180, "cw_y": 330, "cw_w": 140, "cw_h": 20, "right_x": 205, "left_x": 295, "y": 365, "ped_left_x": 190, "ped_right_x": 310, "ped_y": 340},
-            "מזרח": {"cw_x": 330, "cw_y": 180, "cw_w": 20, "cw_h": 140, "right_x": 365, "left_x": 365, "y_right": 195, "y_left": 305, "ped_x": 340, "ped_top_y": 190, "ped_bot_y": 310},
-            "מערב": {"cw_x": 150, "cw_y": 180, "cw_w": 20, "cw_h": 140, "right_x": 135, "left_x": 135, "y_right": 305, "y_left": 195, "ped_x": 160, "ped_top_y": 190, "ped_bot_y": 310}
+            "צפון": {"cw_x": 180, "cw_y": 150, "cw_w": 140, "cw_h": 20, "right_x": 295, "left_x": 205, "y": 135, "ped_left_x": 190, "ped_right_x": 310, "ped_y": 160, "text_x": 330, "text_y": 40},
+            "דרום": {"cw_x": 180, "cw_y": 330, "cw_w": 140, "cw_h": 20, "right_x": 205, "left_x": 295, "y": 365, "ped_left_x": 190, "ped_right_x": 310, "ped_y": 340, "text_x": 330, "text_y": 460},
+            "מזרח": {"cw_x": 330, "cw_y": 180, "cw_w": 20, "cw_h": 140, "right_x": 365, "left_x": 365, "y_right": 195, "y_left": 305, "ped_x": 340, "ped_top_y": 190, "ped_bot_y": 310, "text_x": 360, "text_y": 160},
+            "מערב": {"cw_x": 150, "cw_y": 180, "cw_w": 20, "cw_h": 140, "right_x": 135, "left_x": 135, "y_right": 305, "y_left": 195, "ped_x": 160, "ped_top_y": 190, "ped_bot_y": 310, "text_x": 20, "text_y": 160}
         }
         
         for d, data in arm_settings.items():
             ac = arm_coords[d]
+            
+            # הצגת כיוון נסיעה על גבי הסקיצה
+            ld = data.get("lane_dir", "")
+            if ld:
+                svg_elements.append(f'<text x="{ac["text_x"]}" y="{ac["text_y"]}" fill="#00e676" font-size="11" font-family="sans-serif">{heb(d + ": " + ld)}</text>')
+
             if data["crosswalk"]:
                 svg_elements.append(f'<rect x="{ac["cw_x"]}" y="{ac["cw_y"]}" width="{ac["cw_w"]}" height="{ac["cw_h"]}" fill="#1e1e24" />')
                 if d in ["צפון", "דרום"]:
