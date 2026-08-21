@@ -582,22 +582,22 @@ if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
                     svg_elements.append(f'<rect x="{ac["ped_x"]}" y="{ac["ped_top_y"]}" width="8" height="8" fill="{ped_color}" stroke="#ffffff" stroke-width="1" />')
                     svg_elements.append(f'<rect x="{ac["ped_x"]}" y="{ac["ped_bot_y"]}" width="8" height="8" fill="{ped_color}" stroke="#ffffff" stroke-width="1" />')
 
-        # מקרא מפורט ומעוצב
+        # מקרא מפורט ומעוצב עם כיוון טקסט ישר בעברית (RTL)
         svg_elements.append('<rect x="10" y="360" width="165" height="130" fill="#111116" rx="6" stroke="#4a5568" stroke-width="1" opacity="0.95"/>')
         
         legend_items = [
-            ('<circle cx="22" cy="375" r="4" fill="#2ecc71" />', "םייק ת''פ", 379),
-            ('<circle cx="22" cy="390" r="4" fill="#00ff66" stroke="#fff" stroke-width="0.5" />', "דשח ת''פ", 394),
-            ('<rect x="18" y="401" width="8" height="8" fill="#00d2ff" />', "ל''קר סנפ", 408),
-            ('<rect x="18" y="416" width="8" height="8" fill="#9b59b6" />', "לגלר יכלוה", 423),
-            ('<circle cx="22" cy="433" r="4" fill="#7f8c8d" stroke="#fff" stroke-width="1" />', "תכתמ דומע", 437),
-            ('<circle cx="22" cy="448" r="4" fill="#8d6e63" stroke="#5d4037" stroke-width="1" />', "ץע דומע", 452),
-            ('<line x1="16" y1="463" x2="28" y2="463" stroke="#e67e22" stroke-width="2" stroke-dasharray="2,2" />', "תיליע הילביכ", 467)
+            ('<circle cx="22" cy="375" r="4" fill="#2ecc71" />', 'פ"ת קיים', 379),
+            ('<circle cx="22" cy="390" r="4" fill="#00ff66" stroke="#fff" stroke-width="0.5" />', 'פ"ת חדש', 394),
+            ('<rect x="18" y="401" width="8" height="8" fill="#00d2ff" />', 'פנס רק"ל', 408),
+            ('<rect x="18" y="416" width="8" height="8" fill="#9b59b6" />', "הולכי רגל", 423),
+            ('<circle cx="22" cy="433" r="4" fill="#7f8c8d" stroke="#fff" stroke-width="1" />', "עמוד מתכת", 437),
+            ('<circle cx="22" cy="448" r="4" fill="#8d6e63" stroke="#5d4037" stroke-width="1" />', "עמוד עץ", 452),
+            ('<line x1="16" y1="463" x2="28" y2="463" stroke="#e67e22" stroke-width="2" stroke-dasharray="2,2" />', "כבילה עילית", 467)
         ]
 
         for icon, txt, text_y in legend_items:
             svg_elements.append(icon)
-            svg_elements.append(f'<text x="36" y="{text_y}" fill="#ffffff" font-family="Arial" font-size="10" font-weight="bold">{txt}</text>')
+            svg_elements.append(f'<text x="36" y="{text_y}" fill="#ffffff" font-family="Arial, sans-serif" font-size="11" font-weight="bold" direction="rtl" xml:lang="he">{txt}</text>')
 
         full_svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="500" height="500">{"".join(svg_elements)}</svg>'
 
