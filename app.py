@@ -299,7 +299,6 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
             "מזרח": "East",
             "מערב": "West"
         }
-
         for d, data in lr_arm_settings.items():
             eng_arm_name = heb_to_eng_dir.get(d, d)
             table_data.append([
@@ -411,6 +410,7 @@ st.markdown("""
     .section-title { color: #0f172a; font-size: 18px; font-weight: 800; border-right: 5px solid #2563eb; padding-right: 12px; margin-top: 25px; margin-bottom: 15px; }
     .stButton>button { background-color: #0f172a !important; color: white !important; font-size: 18px !important; font-weight: bold !important; padding: 14px 28px !important; border-radius: 6px !important; border: none !important; }
     .stButton>button:hover { background-color: #2563eb !important; }
+    .footer-signature { text-align: center; color: #475569; font-size: 13px; font-weight: 600; margin-top: 40px; padding: 15px; border-top: 1px solid #cbd5e1; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -423,8 +423,8 @@ st.markdown("""
 
 current_num = get_next_report_number()
 st.info(f'📌 **מספר הדו"ח המיועד להפקה הבאה:** #{current_num}')
-st.markdown('<div class="section-title">📋 פרטי האתר והמפקח</div>', unsafe_allow_html=True)
 
+st.markdown('<div class="section-title">📋 פרטי האתר והמפקח</div>', unsafe_allow_html=True)
 col1, col2 = st.columns(2)
 with col1:
     site_name = st.text_input("שם האתר / פרויקט", "פרויקט מרכז 1")
@@ -502,7 +502,7 @@ if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
                         "crosswalk": crosswalk
                     }
                     
-        # בנאי ה-SVG כולל כיוונים באנגלית בסקיצה
+        # בנאי ה-SVG כולל כיוונים באנגלית בלבד בסקיצה
         svg_elements = []
         svg_elements.append('<rect width="500" height="500" fill="#1e1e24" />')
         svg_elements.append('<rect x="180" y="0" width="140" height="500" fill="#2c2c34" />')
@@ -529,9 +529,9 @@ if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
         for d, data in arm_settings.items():
             ac = arm_coords[d]
             
-            # הצגת כיוון באנגלית על גבי הסקיצה
+            # הצגת כיוון באנגלית בלבד על גבי הסקיצה
             ld = data.get("lane_dir", "")
-            label_text = f"{ac['eng']}: {ld}"
+            label_text = f"{ac['eng']} ({ld})" if ld else ac['eng']
             svg_elements.append(f'<text x="{ac["text_x"]}" y="{ac["text_y"]}" fill="#00e676" font-size="11" font-family="sans-serif">{label_text}</text>')
             
             if data["crosswalk"]:
@@ -598,9 +598,10 @@ if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
         with col_sketch_r:
             st.markdown("##### 🎨 תצוגה מקדימה של סקיצת הרק\"ל")
             st.components.v1.html(full_svg, height=520)
+            if has_temp_cable:
+                st.info("⚡ הערה: קיימת כבילה עילית זמנית (מסומן בסקיצה)")
 
 st.markdown('<div class="section-title">📸 העלאת תמונות ותיאורים</div>', unsafe_allow_html=True)
-
 def render_upload_section(label, key_prefix):
     files = st.file_uploader(label, type=["jpg", "jpeg", "png"], accept_multiple_files=True, key=key_prefix)
     captions = []
@@ -619,7 +620,6 @@ with col_top2:
 
 st.markdown("<hr style='border: 0.5px dashed #cbd5e1; margin: 15px 0;'>", unsafe_allow_html=True)
 st.markdown("##### ➕ תמונות לפי קטגוריות מקצועיות (רשות)")
-
 col_a, col_b = st.columns(2)
 with col_a:
     mechanism_files, mechanism_caps = render_upload_section("תמונות - החלפת מנגנון", "mechanism")
@@ -684,3 +684,10 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
                 file_name=f"DD_Engineers_Report_{report_num}_{date_val}.pdf",
                 mime="application/pdf"
             )
+
+# --- זכויות יוצרים בתחתית האתר ---
+st.markdown("""
+    <div class="footer-signature">
+        כל הזכויות שייכות לנתנאל הררי 0545520445 לא ניתן להעתיק ללא אישור בכתב.
+    </div>
+""", unsafe_allow_html=True)
