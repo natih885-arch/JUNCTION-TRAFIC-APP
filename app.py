@@ -178,6 +178,9 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
     style_notes_content = ParagraphStyle('NotesContent', fontName=FONT_NAME, fontSize=10, leading=14, textColor=colors.HexColor("#1e293b"), alignment=2)
     style_sec_header = ParagraphStyle('SecHeader', fontName=FONT_BOLD_NAME, fontSize=11, leading=14, textColor=colors.HexColor("#0f172a"), alignment=2)
     style_caption = ParagraphStyle('Caption', fontName=FONT_NAME, fontSize=8.5, leading=11, textColor=colors.HexColor("#475569"), alignment=1)
+    
+    # סטייל כותרות הטבלה - אופטימלי להדפסה (טקסט שחור מודגש על רקע אפור בהיר מאוד)
+    style_table_header = ParagraphStyle('TableHeader', fontName=FONT_BOLD_NAME, fontSize=9.5, leading=13, textColor=colors.HexColor("#0f172a"), alignment=1)
 
     story = []
 
@@ -262,15 +265,15 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
         except Exception:
             pass
 
-        # טבלת פירוט זרועות הרק"ל
+        # טבלת פירוט זרועות הרק"ל - נקייה, קריאה וחסכונית בהדפסה
         table_data = [[
-            Paragraph(heb("הולכי רגל"), style_caption),
-            Paragraph(heb("מעבר חצייה"), style_caption),
-            Paragraph(heb("מיקום עמוד"), style_caption),
-            Paragraph(heb("סוג עמוד"), style_caption),
-            Paragraph(heb('פנס רק"ל'), style_caption),
-            Paragraph(heb('פ"ת'), style_caption),
-            Paragraph(heb("זרוע"), style_caption)
+            Paragraph(heb("הולכי רגל"), style_table_header),
+            Paragraph(heb("מעבר חצייה"), style_table_header),
+            Paragraph(heb("מיקום עמוד"), style_table_header),
+            Paragraph(heb("סוג עמוד"), style_table_header),
+            Paragraph(heb('פנס רק"ל'), style_table_header),
+            Paragraph(heb('פ"ת'), style_table_header),
+            Paragraph(heb("זרוע"), style_table_header)
         ]]
 
         for d, data in lr_arm_settings.items():
@@ -290,11 +293,12 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
 
         lr_table = Table(table_data, colWidths=[2.5 * cm, 2.0 * cm, 2.5 * cm, 3.0 * cm, 2.8 * cm, 2.7 * cm, 2.5 * cm])
         lr_table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#182b49')),
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#e2e8f0')), # רקע אפור בהיר לכותרות
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cbd5e1')),
-            ('TOPPADDING', (0,0), (-1,-1), 4),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#94a3b8')),
+            ('TOPPADDING', (0,0), (-1,-1), 5),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
         ]))
         story.append(lr_table)
         story.append(Spacer(1, 0.5 * cm))
@@ -581,15 +585,22 @@ if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
                     svg_elements.append(f'<rect x="{ac["ped_x"]}" y="{ac["ped_top_y"]}" width="8" height="8" fill="{ped_color}" stroke="#ffffff" stroke-width="1" />')
                     svg_elements.append(f'<rect x="{ac["ped_x"]}" y="{ac["ped_bot_y"]}" width="8" height="8" fill="{ped_color}" stroke="#ffffff" stroke-width="1" />')
 
-        # מקרא מורחב וקומפקטי
-        svg_elements.append('<rect x="10" y="380" width="160" height="110" fill="#111116" rx="5" stroke="#444" opacity="0.9"/>')
-        svg_elements.append('<circle cx="20" cy="395" r="4" fill="#2ecc71" />')
-        svg_elements.append('<circle cx="20" cy="410" r="4" fill="#00ff66" stroke="#fff" stroke-width="0.5" />')
-        svg_elements.append('<rect x="16" y="421" width="8" height="8" fill="#00d2ff" />')
-        svg_elements.append('<rect x="16" y="436" width="8" height="8" fill="#9b59b6" />')
-        svg_elements.append('<circle cx="20" cy="453" r="4" fill="#7f8c8d" stroke="#fff" stroke-width="1" />')
-        svg_elements.append('<circle cx="20" cy="468" r="4" fill="#8d6e63" stroke="#5d4037" stroke-width="1" />')
-        svg_elements.append('<line x1="14" y1="481" x2="26" y2="481" stroke="#e67e22" stroke-width="2" stroke-dasharray="2,2" />')
+        # מקרא מפורט ומעוצב עם מלל בעברית
+        svg_elements.append('<rect x="10" y="360" width="165" height="130" fill="#111116" rx="6" stroke="#4a5568" stroke-width="1" opacity="0.95"/>')
+        
+        legend_items = [
+            ('<circle cx="22" cy="375" r="4" fill="#2ecc71" />', "םייק ת''פ"),
+            ('<circle cx="22" cy="390" r="4" fill="#00ff66" stroke="#fff" stroke-width="0.5" />', "דשח ת''פ"),
+            ('<rect x="18" y="401" width="8" height="8" fill="#00d2ff" />', "ל''קר סנפ"),
+            ('<rect x="18" y="416" width="8" height="8" fill="#9b59b6" />', "לגלר יכלוה"),
+            ('<circle cx="22" cy="433" r="4" fill="#7f8c8d" stroke="#fff" stroke-width="1" />', "תכתמ דומע"),
+            ('<circle cx="22" cy="448" r="4" fill="#8d6e63" stroke="#5d4037" stroke-width="1" />', "ץע דומע"),
+            ('<line x1="16" y1="463" x2="28" y2="463" stroke="#e67e22" stroke-width="2" stroke-dasharray="2,2" />', "תיליע הילביכ")
+        ]
+
+        for icon, txt in legend_items:
+            svg_elements.append(icon)
+            svg_elements.append(f'<text x="36" y="{int(icon.split("cy=")[1].split()[0].replace(\'"\', \'\')) if "cy=" in icon else int(icon.split("y=")[1].split()[0].replace(\'"\', \'\')) + 7}" fill="#ffffff" font-family="Arial" font-size="10" font-weight="bold">{txt}</text>')
 
         full_svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="500" height="500">{"".join(svg_elements)}</svg>'
 
