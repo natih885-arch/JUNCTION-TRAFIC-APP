@@ -146,7 +146,7 @@ class NumberedCanvas(canvas.Canvas):
         self.drawCentredString(A4[0] / 2.0, 1 * cm, footer_text)
         self.restoreState()
 
-def generate_pdf(report_num, site_title, junction_name, inspector, license_no, permit_no, date_str, work_type, notes, photo_sections, lr_svg=None, lr_arm_settings=None):
+def generate_pdf(report_num, site_title, junction_name, inspector, license_no, permit_no, date_str, work_type, notes, photo_sections, lr_svg=None, lr_arm_settings=None, has_temp_cable=False):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -234,7 +234,22 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
     # --- הוספת סקיצת רכבת קלה ---
     if lr_svg and lr_arm_settings:
         story.append(Paragraph(heb('סקיצה הנדסית - צומת רכבת קלה (רק"ל):'), style_notes_title))
+        story.append(Spacer(1, 0.1 * cm))
+        
+        cable_status_text = "קיימת כבילה עילית זמנית (הזנה עילית): כן" if has_temp_cable else "קיימת כבילה עילית זמנית (הזנה עילית): לא"
+        cable_status_data = [[Paragraph(heb(cable_status_text), style_cell_label)]]
+        cable_status_table = Table(cable_status_data, colWidths=[18 * cm])
+        cable_status_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#f8fafc")),
+            ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e1")),
+            ('TOPPADDING', (0,0), (-1,-1), 5),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+            ('LEFTPADDING', (0,0), (-1,-1), 8),
+            ('RIGHTPADDING', (0,0), (-1,-1), 8),
+        ]))
+        story.append(cable_status_table)
         story.append(Spacer(1, 0.2 * cm))
+        
         try:
             svg_bytes = io.BytesIO(lr_svg.encode('utf-8'))
             drawing = svg2rlg(svg_bytes)
@@ -464,6 +479,8 @@ notes = st.text_area("הערות מפקח, מפגעים ודגשים", placehold
 # --- מחולל סקיצת רכבת קלה ---
 full_svg = None
 arm_settings = {}
+has_temp_cable = False
+
 if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
     st.markdown('<div class="section-title">🚃 מחולל סקיצה דינמי - רכבת קלה</div>', unsafe_allow_html=True)
     
@@ -502,7 +519,7 @@ if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
                         "crosswalk": crosswalk
                     }
                     
-        # בנאי ה-SVG כולל כיוונים באנגלית בלבד בסקיצה
+        # בנאי ה-SVG כולל כיוונים באנגלית בלבד בסקיצה (ללא שום מילה בעברית)
         svg_elements = []
         svg_elements.append('<rect width="500" height="500" fill="#1e1e24" />')
         svg_elements.append('<rect x="180" y="0" width="140" height="500" fill="#2c2c34" />')
@@ -529,7 +546,7 @@ if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
         for d, data in arm_settings.items():
             ac = arm_coords[d]
             
-            # הצגת כיוון באנגלית בלבד על גבי הסקיצה
+            # הצגת כיוון באנגלית בלבד ללא שום טקסט עברי בתוך הסקיצה
             ld = data.get("lane_dir", "")
             label_text = f"{ac['eng']} ({ld})" if ld else ac['eng']
             svg_elements.append(f'<text x="{ac["text_x"]}" y="{ac["text_y"]}" fill="#00e676" font-size="11" font-family="sans-serif">{label_text}</text>')
@@ -676,7 +693,8 @@ if st.button("🚀 הפק דו\"ח מפקח PDF", use_container_width=True):
                 notes=notes,
                 photo_sections=photo_sections,
                 lr_svg=full_svg,
-                lr_arm_settings=arm_settings
+                lr_arm_settings=arm_settings,
+                has_temp_cable=has_temp_cable
             )
             st.download_button(
                 label="📥 הורד דו\"ח PDF מושלם",
