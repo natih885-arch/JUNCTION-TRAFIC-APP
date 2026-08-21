@@ -466,7 +466,7 @@ if selected_work_type == "עבודות רכבת קלה (רק\"ל)":
 
             for d in directions:
                 with st.expander(f"🚦 הגדרות זרוע {d}"):
-                    traffic_light = st.selectbox(f"פ"ת לרכב ({d})", ["קיים / ללא שינוי", "חדש", "מבוטל", "ללא"], key=f"tl_{d}")
+                   traffic_light = st.selectbox(f'פ"ת לרכב ({d})', ["קיים / ללא שינוי", "חדש", "מבוטל", "ללא"], key=f"tl_{d}")
                     traffic_dir = st.selectbox(f"כיוון פ"ת ({d})", ["נכנס לצומת", "יוצא מהצומת", "דו-כיווני (לשני הצדדים)"], key=f"tdir_{d}")
                     pole_type = st.selectbox(f"סוג עמוד ראשי ({d})", ["עמוד מתכת", "עמוד עץ", "ללא עמוד"], key=f"pole_{d}")
                     
