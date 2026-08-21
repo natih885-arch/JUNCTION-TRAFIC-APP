@@ -19,7 +19,6 @@ from svglib.svglib import svg2rlg
 
 # --- הגדרת תצורת עמוד ב-Streamlit ---
 st.set_page_config(page_title="דו\"ח מפקח הסדר תנועה - ד.ד מהנדסים בע''מ", page_icon="🚦", layout="centered")
-
 START_NUMBER = 100
 
 def get_gspread_client():
@@ -293,7 +292,16 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
             elif val == "מבוטל":
                 return f'<font color="#e74c3c">✖</font> {val}'
             return val
+            
+        heb_to_eng_dir = {
+            "צפון": "North",
+            "דרום": "South",
+            "מזרח": "East",
+            "מערב": "West"
+        }
+
         for d, data in lr_arm_settings.items():
+            eng_arm_name = heb_to_eng_dir.get(d, d)
             table_data.append([
                 Paragraph(heb(data.get("lane_dir", "ישר בלבד")), style_caption),
                 Paragraph(heb(get_ped_str(data["pedestrian"])), style_caption),
@@ -302,7 +310,7 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
                 Paragraph(heb(get_pole_str(data)), style_caption),
                 Paragraph(heb(get_lr_str(data["light_rail"])), style_caption),
                 Paragraph(heb(get_tl_str(data["traffic_light"])), style_caption),
-                Paragraph(heb(d), style_caption)
+                Paragraph(eng_arm_name, style_caption)
             ])
             
         lr_table = Table(table_data, colWidths=[2.2 * cm, 2.3 * cm, 1.8 * cm, 2.3 * cm, 2.7 * cm, 2.4 * cm, 2.3 * cm, 2.0 * cm])
@@ -415,7 +423,6 @@ st.markdown("""
 
 current_num = get_next_report_number()
 st.info(f'📌 **מספר הדו"ח המיועד להפקה הבאה:** #{current_num}')
-
 st.markdown('<div class="section-title">📋 פרטי האתר והמפקח</div>', unsafe_allow_html=True)
 
 col1, col2 = st.columns(2)
@@ -424,9 +431,7 @@ with col1:
     junction_name = st.text_input("שם הצומת / מיקום", "צומת הרצל - ז'בוטינסקי")
     inspector_name = st.text_input("שם המפקח", "נתנאל עוז")
     license_no = st.text_input("מספר רישיון / מ.פ (רשות)", "1015546")
-    # התווית עודכנה ל-"מספר היתר (רשות)"
     permit_no = st.text_input("מספר היתר (רשות)", placeholder="לדוגמה: H-2026-99")
-
 with col2:
     date_val = st.date_input("תאריך הבדיקה")
     
@@ -459,7 +464,6 @@ notes = st.text_area("הערות מפקח, מפגעים ודגשים", placehold
 # --- מחולל סקיצת רכבת קלה ---
 full_svg = None
 arm_settings = {}
-
 if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
     st.markdown('<div class="section-title">🚃 מחולל סקיצה דינמי - רכבת קלה</div>', unsafe_allow_html=True)
     
@@ -498,7 +502,7 @@ if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
                         "crosswalk": crosswalk
                     }
                     
-        # בנאי ה-SVG כולל כיווני נסיעה
+        # בנאי ה-SVG כולל כיוונים באנגלית בסקיצה
         svg_elements = []
         svg_elements.append('<rect width="500" height="500" fill="#1e1e24" />')
         svg_elements.append('<rect x="180" y="0" width="140" height="500" fill="#2c2c34" />')
@@ -516,20 +520,20 @@ if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
             svg_elements.append('<line x1="30" y1="30" x2="470" y2="470" stroke="#e67e22" stroke-width="3" stroke-dasharray="6,6" />')
             
         arm_coords = {
-            "צפון": {"cw_x": 180, "cw_y": 150, "cw_w": 140, "cw_h": 20, "right_x": 295, "left_x": 205, "y": 135, "ped_left_x": 190, "ped_right_x": 310, "ped_y": 160, "text_x": 330, "text_y": 40},
-            "דרום": {"cw_x": 180, "cw_y": 330, "cw_w": 140, "cw_h": 20, "right_x": 205, "left_x": 295, "y": 365, "ped_left_x": 190, "ped_right_x": 310, "ped_y": 340, "text_x": 330, "text_y": 460},
-            "מזרח": {"cw_x": 330, "cw_y": 180, "cw_w": 20, "cw_h": 140, "right_x": 365, "left_x": 365, "y_right": 195, "y_left": 305, "ped_x": 340, "ped_top_y": 190, "ped_bot_y": 310, "text_x": 360, "text_y": 160},
-            "מערב": {"cw_x": 150, "cw_y": 180, "cw_w": 20, "cw_h": 140, "right_x": 135, "left_x": 135, "y_right": 305, "y_left": 195, "ped_x": 160, "ped_top_y": 190, "ped_bot_y": 310, "text_x": 20, "text_y": 160}
+            "צפון": {"eng": "North", "cw_x": 180, "cw_y": 150, "cw_w": 140, "cw_h": 20, "right_x": 295, "left_x": 205, "y": 135, "ped_left_x": 190, "ped_right_x": 310, "ped_y": 160, "text_x": 330, "text_y": 40},
+            "דרום": {"eng": "South", "cw_x": 180, "cw_y": 330, "cw_w": 140, "cw_h": 20, "right_x": 205, "left_x": 295, "y": 365, "ped_left_x": 190, "ped_right_x": 310, "ped_y": 340, "text_x": 330, "text_y": 460},
+            "מזרח": {"eng": "East", "cw_x": 330, "cw_y": 180, "cw_w": 20, "cw_h": 140, "right_x": 365, "left_x": 365, "y_right": 195, "y_left": 305, "ped_x": 340, "ped_top_y": 190, "ped_bot_y": 310, "text_x": 360, "text_y": 160},
+            "מערב": {"eng": "West", "cw_x": 150, "cw_y": 180, "cw_w": 20, "cw_h": 140, "right_x": 135, "left_x": 135, "y_right": 305, "y_left": 195, "ped_x": 160, "ped_top_y": 190, "ped_bot_y": 310, "text_x": 20, "text_y": 160}
         }
         
         for d, data in arm_settings.items():
             ac = arm_coords[d]
             
-            # הצגת כיוון נסיעה על גבי הסקיצה
+            # הצגת כיוון באנגלית על גבי הסקיצה
             ld = data.get("lane_dir", "")
-            if ld:
-                svg_elements.append(f'<text x="{ac["text_x"]}" y="{ac["text_y"]}" fill="#00e676" font-size="11" font-family="sans-serif">{heb(d + ": " + ld)}</text>')
-
+            label_text = f"{ac['eng']}: {ld}"
+            svg_elements.append(f'<text x="{ac["text_x"]}" y="{ac["text_y"]}" fill="#00e676" font-size="11" font-family="sans-serif">{label_text}</text>')
+            
             if data["crosswalk"]:
                 svg_elements.append(f'<rect x="{ac["cw_x"]}" y="{ac["cw_y"]}" width="{ac["cw_w"]}" height="{ac["cw_h"]}" fill="#1e1e24" />')
                 if d in ["צפון", "דרום"]:
