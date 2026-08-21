@@ -1,7 +1,9 @@
 streamlit
-reportlab
-arabic_reshaper
+arabic-reshaper
 python-bidi
 Pillow
 gspread
 google-auth
+reportlab
+svglib
+rlPyCake
