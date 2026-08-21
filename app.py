@@ -35,7 +35,6 @@ def get_gspread_client():
         return None
 
 def get_next_report_number():
-    """שולף את מספר הדו"ח הגבוה ביותר מטור A בלבד"""
     try:
         client = get_gspread_client()
         if not client:
@@ -44,7 +43,6 @@ def get_next_report_number():
         sheet = client.open_by_url(sheet_url).sheet1
         
         col_a = sheet.col_values(1)
-        
         if len(col_a) <= 1:
             return START_NUMBER
         
@@ -251,6 +249,7 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
             story.append(Spacer(1, 0.3 * cm))
         except Exception:
             pass
+            
         table_data = [[
             Paragraph(heb("הולכי רגל"), style_table_header),
             Paragraph(heb("מעבר חצייה"), style_table_header),
@@ -260,19 +259,58 @@ def generate_pdf(report_num, site_title, junction_name, inspector, license_no, p
             Paragraph(heb('פ"ת'), style_table_header),
             Paragraph(heb("זרוע"), style_table_header)
         ]]
-        for d, data in lr_arm_settings.items():
-            pole_str = data["pole_type"]
+        
+        # פונקציות עזר להוספת אייקונים צבעוניים לטבלה
+        def get_ped_str(val):
+            if val in ["קיים / ללא שינוי", "חדש"]:
+                return f'<font color="#9b59b6">■</font> {val}'
+            return val
+
+        def get_pole_str(data):
+            p1 = data["pole_type"]
+            res = p1
+            if p1 == "עמוד מתכת":
+                res = f'<font color="#7f8c8d">●</font> {p1}'
+            elif p1 == "עמוד עץ":
+                res = f'<font color="#8d6e63">●</font> {p1}'
+                
             if data["traffic_dir"] == "דו-כיווני (לשני הצדדים)":
-                pole_str += f" / {data['pole_type_opp']}"
+                p2 = data["pole_type_opp"]
+                p2_str = p2
+                if p2 == "עמוד מתכת":
+                    p2_str = f'<font color="#7f8c8d">●</font> {p2}'
+                elif p2 == "עמוד עץ":
+                    p2_str = f'<font color="#8d6e63">●</font> {p2}'
+                res += f" / {p2_str}"
+            return res
+
+        def get_lr_str(val):
+            if val == "חדש" or val == "קיים / ללא שינוי":
+                return f'<font color="#00d2ff">■</font> {val}'
+            elif val == "מבוטל":
+                return f'<font color="#7f8c8d">■</font> {val}'
+            return val
+
+        def get_tl_str(val):
+            if val == "חדש":
+                return f'<font color="#00ff66">●</font> {val}'
+            elif val == "קיים / ללא שינוי":
+                return f'<font color="#2ecc71">●</font> {val}'
+            elif val == "מבוטל":
+                return f'<font color="#e74c3c">✖</font> {val}'
+            return val
+
+        for d, data in lr_arm_settings.items():
             table_data.append([
-                Paragraph(heb(data["pedestrian"]), style_caption),
+                Paragraph(heb(get_ped_str(data["pedestrian"])), style_caption),
                 Paragraph(heb("כן" if data["crosswalk"] else "לא"), style_caption),
                 Paragraph(heb(data["pole_pos"]), style_caption),
-                Paragraph(heb(pole_str), style_caption),
-                Paragraph(heb(data["light_rail"]), style_caption),
-                Paragraph(heb(data["traffic_light"]), style_caption),
+                Paragraph(heb(get_pole_str(data)), style_caption),
+                Paragraph(heb(get_lr_str(data["light_rail"])), style_caption),
+                Paragraph(heb(get_tl_str(data["traffic_light"])), style_caption),
                 Paragraph(heb(d), style_caption)
             ])
+            
         lr_table = Table(table_data, colWidths=[2.5 * cm, 2.0 * cm, 2.5 * cm, 3.0 * cm, 2.8 * cm, 2.7 * cm, 2.5 * cm])
         lr_table.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#e2e8f0')),
@@ -459,7 +497,7 @@ if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
                         "crosswalk": crosswalk
                     }
                     
-        # בנאי ה-SVG
+        # בנאי ה-SVG (ללא קופסת מקרא מובנית בתוך ה-SVG)
         svg_elements = []
         svg_elements.append('<rect width="500" height="500" fill="#1e1e24" />')
         svg_elements.append('<rect x="180" y="0" width="140" height="500" fill="#2c2c34" />')
@@ -545,25 +583,6 @@ if selected_work_type == 'עבודות רכבת קלה (רק"ל)':
                     svg_elements.append(f'<rect x="{ac["ped_x"]}" y="{ac["ped_top_y"]}" width="8" height="8" fill="{ped_color}" stroke="#ffffff" stroke-width="1" />')
                     svg_elements.append(f'<rect x="{ac["ped_x"]}" y="{ac["ped_bot_y"]}" width="8" height="8" fill="{ped_color}" stroke="#ffffff" stroke-width="1" />')
         
-        # מקרא מפורט ומעוצב עם כיוון טקסט ישר בעברית (RTL) ותמיכה בפונטים ב-PDF
-        svg_elements.append('<rect x="10" y="360" width="165" height="130" fill="#111116" rx="6" stroke="#4a5568" stroke-width="1" opacity="0.95"/>')
-        
-        legend_items = [
-            ('<circle cx="22" cy="375" r="4" fill="#2ecc71" />', 'פ"ת קיים', 379),
-            ('<circle cx="22" cy="390" r="4" fill="#00ff66" stroke="#fff" stroke-width="0.5" />', 'פ"ת חדש', 394),
-            ('<rect x="18" y="401" width="8" height="8" fill="#00d2ff" />', 'פנס רק"ל', 408),
-            ('<rect x="18" y="416" width="8" height="8" fill="#9b59b6" />', "הולכי רגל", 423),
-            ('<circle cx="22" cy="433" r="4" fill="#7f8c8d" stroke="#fff" stroke-width="1" />', "עמוד מתכת", 437),
-            ('<circle cx="22" cy="448" r="4" fill="#8d6e63" stroke="#5d4037" stroke-width="1" />', "עמוד עץ", 452),
-            ('<line x1="16" y1="463" x2="28" y2="463" stroke="#e67e22" stroke-width="2" stroke-dasharray="2,2" />', "כבילה עילית", 467)
-        ]
-        
-        for icon, txt, text_y in legend_items:
-            svg_elements.append(icon)
-            # שימוש ב-heb() עבור הכיווניות ב-ReportLab, והגדרת font-family חלופי להתאמה
-            hebrew_text = heb(txt)
-            svg_elements.append(f'<text x="36" y="{text_y}" fill="#ffffff" font-family="{FONT_NAME}, Rubik, Arial, sans-serif" font-size="11" font-weight="bold">{hebrew_text}</text>')
-            
         full_svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="500" height="500">{"".join(svg_elements)}</svg>'
         with col_sketch_r:
             st.markdown("##### 🎨 תצוגה מקדימה של סקיצת הרק\"ל")
